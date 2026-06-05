@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@web3modal/ethers": "^5.1.11",
     "axios": "^1.14.0",
     "clsx": "^2.0.0",
     "ethers": "^6.16.0",
@@ -33,6 +34,7 @@
     "@types/react-resizable": "^3.0.8",
     "@types/recharts": "^1.8.29",
     "@vitejs/plugin-react-swc": "^3.3.2",
+    "playwright": "^1.60.0",
     "typescript": "^5.0.2",
     "vite": "^4.4.5"
   }

@@ -8,7 +8,11 @@ import { API_BASE } from '../constants';
 // Xibalba Solutions: Live Telemetry Stream Visualizer (v1.0)
 // Real-time scrolling feed for monitoring agentic performance pulses.
 
-export const TelemetryStream = () => {
+interface TelemetryStreamProps {
+    agentAddress?: string;
+}
+
+export const TelemetryStream = ({ agentAddress }: TelemetryStreamProps) => {
     const isMobile = useIsMobile();
     const [stream, setStream] = useState<any[]>([]);
 
@@ -54,7 +58,7 @@ export const TelemetryStream = () => {
             {/* FIXED SIZE SCROLLING WINDOW */}
             <div className="card-body mono" style={{ flex: 1, overflowY: 'auto', maxHeight: '420px', fontSize: '0.75rem', padding: '24px' }}>
                 <AnimatePresence initial={false}>
-                    {stream.map((data) => {
+                    {stream.filter(d => !agentAddress || d.eth_address === agentAddress || d.agent === agentAddress).map((data) => {
                         const isWarning = data.latency > 1000 || data.accuracy < 0.5;
                         
                         if (isMobile) {

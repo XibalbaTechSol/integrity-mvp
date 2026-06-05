@@ -18,10 +18,15 @@ import { TokenWallet } from '../components/TokenWallet';
 import { CreditFacility } from '../components/CreditFacility';
 import { GlobalSettings } from '../components/GlobalSettings';
 import { DIDExplorer } from '../components/DIDExplorer';
+import { StakingPortal } from '../components/StakingPortal';
+import { InstitutionalUpgrade } from '../components/InstitutionalUpgrade';
+
 import { RiskAutomation } from '../components/RiskAutomation';
 import { SandboxConsole } from '../components/SandboxConsole';
 import { AgentOnboarding } from '../components/AgentOnboarding';
 import { RegistryExplorer } from '../components/RegistryExplorer';
+import { ReimaginedDashboard } from '../components/ReimaginedDashboard';
+import { useWeb3Modal, useWeb3ModalAccount, useDisconnect } from '@web3modal/ethers/react';
 
 import { useIsMobile } from '../utils/useIsMobile';
 import { API_BASE } from '../constants';
@@ -46,114 +51,72 @@ interface Agent {
     recommended_premium_bps?: number;
     tx_count_24h?: number;
     penalty_points?: number;
+    owner_address?: string | null;
 }
+
 
 export const Dashboard = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState<User | null>(null);
     const [agents, setAgents] = useState<Agent[]>([]);
+    const [unclaimedAgents, setUnclaimedAgents] = useState<Agent[]>([]);
     const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+
     const [isLoading, setIsLoading] = useState(true);
     const [isBackendUp, setIsBackendUp] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+    const [isInstitutionalOpen, setIsInstitutionalOpen] = useState(false);
     const [editAgent, setEditAgent] = useState<Agent | null>(null);
+
     const [userProfile, setUserProfile] = useState<any>(null);
     const [activeTab, setActiveTab] = useState('command'); // 'command', 'sandbox', 'settings'
     const [searchParams, setSearchParams] = useSearchParams();
     const [isRegistryOpen, setIsRegistryOpen] = useState(false);
     const isMobile = useIsMobile();
 
-    // MetaMask Web3 States
-    const [metaMaskAddress, setMetaMaskAddress] = useState<string | null>(null);
-    const [metaMaskBalance, setMetaMaskBalance] = useState<string>('0.0');
-    const [isConnectingMetaMask, setIsConnectingMetaMask] = useState(false);
+    // Web3Modal States
+    const { open } = useWeb3Modal();
+    const { address, isConnected } = useWeb3ModalAccount();
+    const { disconnect } = useDisconnect();
 
-    // Live Web3 Connection
+    const metaMaskAddress = isConnected && address ? address : null;
+
     const connectMetaMask = async () => {
-        if (window.ethereum) {
-            setIsConnectingMetaMask(true);
-            try {
-                const provider = new ethers.BrowserProvider(window.ethereum);
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                if (accounts.length > 0) {
-                    const addr = accounts[0];
-                    setMetaMaskAddress(addr);
-                    
-                    const bal = await provider.getBalance(addr);
-                    setMetaMaskBalance(ethers.formatEther(bal));
-
-                    // Register with backend sync if session is active
-                    try {
-                        let token = '';
-                        if (user) {
-                            token = `Bearer ${await user.getIdToken()}`;
-                        } else {
-                            const mockToken = localStorage.getItem('integrity_mock_token');
-                            token = mockToken ? (mockToken.startsWith('Bearer ') ? mockToken : `Bearer ${mockToken}`) : '';
-                        }
-                        if (token) {
-                            await axios.post(`${API_BASE}/v1/hermes/link`, {
-                                eth_address: addr
-                            }, {
-                                headers: { Authorization: token }
-                            });
-                            console.log("Sovereign address synchronized with session ledger.");
-                        }
-                    } catch (err) {
-                        console.warn("Hermes sync skipped or offline:", err);
-                    }
-                }
-            } catch (err) {
-                console.error("MetaMask error:", err);
-            } finally {
-                setIsConnectingMetaMask(false);
-            }
-        } else {
-            alert("MetaMask extension not detected in this browser session.");
-        }
+        await open();
     };
 
     const disconnectMetaMask = () => {
-        setMetaMaskAddress(null);
-        setMetaMaskBalance('0.0');
+        disconnect();
     };
 
-    // Auto-discover existing accounts on session bootstrap
+    // Auto-discover and link account to session ledger
     useEffect(() => {
-        if (window.ethereum) {
-            window.ethereum.request({ method: 'eth_accounts' })
-                .then(async (accounts: string[]) => {
-                    if (accounts.length > 0) {
-                        const addr = accounts[0];
-                        setMetaMaskAddress(addr);
-                        const provider = new ethers.BrowserProvider(window.ethereum);
-                        const bal = await provider.getBalance(addr);
-                        setMetaMaskBalance(ethers.formatEther(bal));
+        const linkAccount = async () => {
+            if (isConnected && address) {
+                try {
+                    let token = '';
+                    if (user) {
+                        token = `Bearer ${await user.getIdToken()}`;
+                    } else {
+                        const mockToken = localStorage.getItem('integrity_mock_token');
+                        token = mockToken ? (mockToken.startsWith('Bearer ') ? mockToken : `Bearer ${mockToken}`) : '';
                     }
-                })
-                .catch(console.error);
-
-            const handleAccountsChanged = async (accounts: string[]) => {
-                if (accounts.length > 0) {
-                    const addr = accounts[0];
-                    setMetaMaskAddress(addr);
-                    const provider = new ethers.BrowserProvider(window.ethereum);
-                    const bal = await provider.getBalance(addr);
-                    setMetaMaskBalance(ethers.formatEther(bal));
-                } else {
-                    disconnectMetaMask();
+                    if (token) {
+                        await axios.post(`${API_BASE}/v1/hermes/link`, {
+                            eth_address: address
+                        }, {
+                            headers: { Authorization: token }
+                        });
+                        console.log("Sovereign address synchronized with session ledger.");
+                    }
+                } catch (err) {
+                    console.warn("Hermes sync skipped or offline:", err);
                 }
-            };
-
-            window.ethereum.on('accountsChanged', handleAccountsChanged);
-            return () => {
-                if (window.ethereum && window.ethereum.removeListener) {
-                    window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-                }
-            };
-        }
-    }, []);
+            }
+        };
+        linkAccount();
+    }, [isConnected, address, user]);
 
     // Firebase Auth State
     useEffect(() => {
@@ -230,16 +193,8 @@ export const Dashboard = () => {
             };
             (window as any).__setRegistryOpen = (open: boolean) => setIsRegistryOpen(open);
             (window as any).__setOnboardingOpen = (open: boolean) => setIsOnboardingOpen(open);
-            (window as any).__setMetaMaskAddress = (addr: string | null) => {
-                setMetaMaskAddress(addr);
-                if (addr) {
-                    setMetaMaskBalance('54.2');
-                } else {
-                    setMetaMaskBalance('0.0');
-                }
-            };
         }
-    }, [agents, setActiveTab, setSelectedAgent, setIsRegistryOpen, setIsOnboardingOpen, setMetaMaskAddress]);
+    }, [agents, setActiveTab, setSelectedAgent, setIsRegistryOpen, setIsOnboardingOpen]);
 
     const fetchProfile = useCallback(async () => {
         let token = '';
@@ -284,35 +239,73 @@ export const Dashboard = () => {
             const res = await axios.get(`${API_BASE}/v1/user/agents`, {
                 headers: { Authorization: token }
             });            
-            const userAgents = Array.isArray(res.data) ? res.data : [];
+            const allFetchedAgents = Array.isArray(res.data) ? res.data : [];
             
             let enrichedAgents = await Promise.all(
-                userAgents.map(async (agent: any) => {
+                allFetchedAgents.map(async (agent: any) => {
+                    const addr = agent.eth_address || agent.agent_wallet || agent.agent_id;
+                    let enriched = { 
+                        ...agent, 
+                        eth_address: addr,
+                        tx_count_24h: agent.tx_count_24h || 0,
+                        owner_address: agent.owner_address
+                    };
+
+                    // Fetch live metrics from the oracle (entropy, grounding, AIS ceiling)
+                    try {
+                        const oracleRes = await axios.get(`${API_BASE}/v1/agent/${addr}`);
+
+                        const od = oracleRes.data;
+                        enriched = {
+                            ...enriched,
+                            current_ais: od.current_ais ?? enriched.current_ais,
+                            entropy_score: od.performance_entropy !== undefined
+                                ? Math.round(od.performance_entropy * 1000)
+                                : enriched.entropy_score,
+                            grounding_score: od.verification_tier
+                                ? (od.verification_tier >= 3 ? 950 : od.verification_tier >= 2 ? 750 : 500)
+                                : enriched.grounding_score,
+                            verification_tier: od.verification_tier ?? enriched.verification_tier,
+                            alias: od.alias || enriched.alias,
+                            xns_handle: od.xns_handle || enriched.xns_handle,
+                            owner_address: od.owner_address || enriched.owner_address,
+                        };
+                    } catch (_e) {
+                        // Oracle unreachable — keep existing values
+                    }
+
+                    // Fetch insurance risk tier
                     try {
                         const quoteRes = await axios.post(`${API_BASE}/v1/insurance/quote`, {
                             agent_eth_address: agent.eth_address,
                             contract_value_intg: 1000.0
                         });
-                        return {
-                            ...agent,
+                        enriched = {
+                            ...enriched,
                             risk_tier: quoteRes.data.risk_tier,
                             recommended_premium_bps: quoteRes.data.recommended_premium_bps,
-                            tx_count_24h: agent.tx_count_24h || 0
                         };
-                    } catch (e) {
-                        return { ...agent, tx_count_24h: agent.tx_count_24h || 0 };
+                    } catch (_e) {
+                        // Insurance endpoint offline — skip
                     }
+
+                    return enriched;
                 })
             );
 
-            // Master Agent Injection
+            // Master Agent Injection — tries oracle first, falls back to static defaults
             const isMockMaster = localStorage.getItem('integrity_mock_token') === 'mock_demo_token';
             const isMaster = isMockMaster || user?.email === 'jacob.v.universe@gmail.com' || user?.email === 'xibalbasolutions@gmail.com' || user?.email === 'demo@integrity.protocol' || user?.uid === 'master_agent_uid' || user?.uid === 'mock_dev_uid' || user?.uid === 'jacob_v_universe_master' || localStorage.getItem('integrity_master_email') === 'xibalbasolutions@gmail.com';
             
-            const xibalbaAgent: any = {
-                eth_address: '0x67ba5d723e1f5517aff7eb980e2f73a9e17ad556',
+            const XIBALBA_ADDR = '0xCdc38F270209EbB1f77B64912DBcaed1d28FAA41';
+
+
+
+
+            let xibalbaAgent: any = {
+                eth_address: XIBALBA_ADDR,
                 alias: 'Xibalba Core',
-                did: 'did:intg:0x67ba5d723e1f5517aff7eb980e2f73a9e17ad556',
+                did: 'did:intg:' + XIBALBA_ADDR,
                 verification_tier: 3,
                 current_ais: 920,
                 grounding_score: 950,
@@ -321,8 +314,28 @@ export const Dashboard = () => {
                 risk_tier: 'AAA',
                 recommended_premium_bps: 25,
                 tx_count_24h: 124,
-                status: 'active'
+                status: 'active',
+                owner_address: null
             };
+
+            // Attempt live oracle fetch for master agent
+            try {
+                const liveRes = await axios.get(`${API_BASE}/v1/agent/${XIBALBA_ADDR}`);
+                const ld = liveRes.data;
+                xibalbaAgent = {
+                    ...xibalbaAgent,
+                    current_ais: ld.current_ais ?? xibalbaAgent.current_ais,
+                    verification_tier: ld.verification_tier ?? 3,
+                    alias: ld.alias || 'Xibalba Core',
+                    xns_handle: ld.xns_handle || undefined,
+                    entropy_score: ld.performance_entropy !== undefined
+                        ? Math.round(ld.performance_entropy * 1000)
+                        : xibalbaAgent.entropy_score,
+                    owner_address: ld.owner_address || null
+                };
+            } catch (_e) {
+                // Oracle offline — static defaults stand
+            }
 
             if (isMaster) {
                 const alreadyHas = enrichedAgents.some(a => a.eth_address === xibalbaAgent.eth_address);
@@ -331,22 +344,31 @@ export const Dashboard = () => {
                 }
             }
             
-            setAgents(enrichedAgents);
+            // Filter: Owned by me OR unclaimed
+            const myAgents = enrichedAgents.filter(a => 
+                a.owner_address?.toLowerCase() === metaMaskAddress?.toLowerCase() ||
+                (a.eth_address === XIBALBA_ADDR && isMaster)
+            );
+            const unclaimed = enrichedAgents.filter(a => !a.owner_address);
+
+            setAgents(myAgents);
+            setUnclaimedAgents(unclaimed);
             setIsBackendUp(true);
             
-            if (enrichedAgents.length > 0) {
+            if (myAgents.length > 0) {
                 setSelectedAgent(prev => {
                     if (selectAddress) {
-                        const target = enrichedAgents.find(a => a.eth_address === selectAddress);
+                        const target = myAgents.find(a => a.eth_address === selectAddress);
                         if (target) return target;
                     }
-                    if (!prev) return enrichedAgents[0];
-                    const updated = enrichedAgents.find(a => a.eth_address === prev.eth_address);
-                    return updated || enrichedAgents[0];
+                    if (!prev) return myAgents[0];
+                    const updated = myAgents.find(a => a.eth_address === prev.eth_address);
+                    return updated || myAgents[0];
                 });
             } else {
                 setSelectedAgent(null);
             }
+
         } catch (error: any) {
             console.error("Agent fetch failed, initiating master fallback...", error.message);
             setIsBackendUp(false);
@@ -395,7 +417,38 @@ export const Dashboard = () => {
         navigate('/login');
     };
 
+    const handleClaimAgent = async (agent: Agent) => {
+        if (!isConnected || !address) {
+            alert("Please connect your MetaMask wallet to claim this agent.");
+            open();
+            return;
+        }
+        
+        try {
+            const timestamp = Math.floor(Date.now() / 1000);
+            const challenge = `I, ${address.toLowerCase()}, claim ownership of agent ${agent.eth_address.toLowerCase()} on the Xibalba Integrity Protocol. Timestamp: ${timestamp}`;
+            
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            const signature = await signer.signMessage(challenge);
+            
+            await axios.post(`${API_BASE}/v1/agents/claim`, {
+                agent_wallet: agent.eth_address,
+                owner_wallet: address,
+                challenge: challenge,
+                signature: signature,
+                timestamp: timestamp
+            });
+            
+            fetchAgents(false, agent.eth_address);
+        } catch (err: any) {
+            console.error("Claim failed:", err);
+            alert("Claim failed: " + (err.response?.data?.detail || err.message));
+        }
+    };
+
     return (
+
         <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--navy-deep)', color: 'white' }}>
             
             {/* INJECT PREMIUM SCANLINE CUSTOM CSS */}
@@ -515,6 +568,22 @@ export const Dashboard = () => {
 
                     <nav style={{ padding: 'var(--space-6) var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', flex: 1 }}>
                         <button
+                            onClick={() => setActiveTab('reimagined')}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                                padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--r-md)',
+                                background: activeTab === 'reimagined' ? 'var(--gold-muted)' : 'transparent',
+                                color: activeTab === 'reimagined' ? 'var(--gold)' : 'var(--text-secondary)',
+                                border: `1px solid ${activeTab === 'reimagined' ? 'var(--glass-border-strong)' : 'transparent'}`,
+                                fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', width: '100%', textAlign: 'left'
+                            }}
+                        >
+                            <Activity size={18} style={{ opacity: activeTab === 'reimagined' ? 1 : 0.6 }} />
+                            Reimagined Dashboard
+                        </button>
+                        
+                        <button
                             onClick={() => setActiveTab('command')}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
@@ -608,7 +677,7 @@ export const Dashboard = () => {
                     <div>
                         {!isMobile && <div style={{ fontSize: '0.65rem', color: 'var(--gold)', letterSpacing: '0.25em', fontWeight: 800, marginBottom: 'var(--space-1)', textTransform: 'uppercase' }}>Sovereign Node Core</div>}
                         <h1 style={{ fontSize: isMobile ? '1.2rem' : '1.8rem', margin: 0, color: 'white', fontWeight: 800, fontFamily: 'Playfair Display, serif' }}>
-                            {{ command: 'Command Center', settings: 'Global Settings', sandbox: 'Developer Sandbox' }[activeTab]}
+                            {{ command: 'Command Center', settings: 'Global Settings', sandbox: 'Developer Sandbox', reimagined: 'Telemetry Dashboard' }[activeTab as string]}
                         </h1>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
@@ -638,24 +707,11 @@ export const Dashboard = () => {
                         ) : (
                             <button 
                                 onClick={connectMetaMask} 
-                                disabled={isConnectingMetaMask}
-                                style={{ 
-                                    background: 'linear-gradient(135deg, #c9a84c 0%, #a88432 100%)', 
-                                    border: 'none', 
-                                    color: 'black', 
-                                    padding: '10px 20px', 
-                                    borderRadius: '100px', 
-                                    fontSize: '0.72rem', 
-                                    fontWeight: 900, 
-                                    cursor: 'pointer', 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    gap: '8px',
-                                    boxShadow: '0 4px 14px rgba(201, 168, 76, 0.3)'
-                                }}
+                                className="badge badge-gold" 
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', cursor: 'pointer', background: 'rgba(212, 175, 55, 0.1)', border: '1px solid rgba(212, 175, 55, 0.3)' }}
                             >
-                                <Wallet size={14} />
-                                {isConnectingMetaMask ? 'CONNECTING...' : 'CONNECT METAMASK'}
+                                <div className="pulse-gold" style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--gold)' }} />
+                                CONNECT WALLET
                             </button>
                         )}
 
@@ -676,6 +732,18 @@ export const Dashboard = () => {
                             transition={{ duration: 0.2 }}
                             style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}
                         >
+                            {activeTab === 'reimagined' && (
+                                <div style={{ padding: '0', flex: 1 }}>
+                                    <ReimaginedDashboard
+                                        agents={agents}
+                                        selectedAgent={selectedAgent}
+                                        setSelectedAgent={setSelectedAgent}
+                                        metaMaskAddress={metaMaskAddress}
+                                        connectMetaMask={connectMetaMask}
+                                    />
+                                </div>
+                            )}
+
                             {activeTab === 'command' && (
                                 <div className="premium-grid">
                                     
@@ -722,10 +790,41 @@ export const Dashboard = () => {
                                                 ))}
                                                 {agents.length === 0 && !isLoading && (
                                                     <div style={{ padding: '20px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '0.75rem' }}>
-                                                        No active nodes found in this profile database.
+                                                        No active nodes in registry.
                                                     </div>
                                                 )}
-                                            </div>
+                                                </div>
+
+                                                {/* DISCOVERY SECTION: UNCLAIMED AGENTS */}
+                                                {unclaimedAgents.length > 0 && (
+                                                <div style={{ marginTop: '20px', padding: '16px', background: 'rgba(212, 175, 55, 0.05)', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.1)' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                                                        <Search size={14} style={{ color: 'var(--gold)' }} />
+                                                        <h4 style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--gold)', letterSpacing: '0.1em' }}>Unclaimed Discovery</h4>
+                                                    </div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        {unclaimedAgents.map(a => (
+                                                            <div 
+                                                                key={a.eth_address}
+                                                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '6px' }}
+                                                            >
+                                                                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                                                    <span style={{ fontSize: '0.7rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.alias || 'Detected Node'}</span>
+                                                                    <span style={{ fontSize: '0.55rem', opacity: 0.4 }}>{a.eth_address.substring(0, 10)}...</span>
+                                                                </div>
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); handleClaimAgent(a); }}
+                                                                    className="btn btn-primary"
+                                                                    style={{ padding: '4px 10px', fontSize: '0.6rem', borderRadius: '4px', flexShrink: 0 }}
+                                                                >
+                                                                    Claim
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                )}
+
                                         </div>
 
                                         {/* Active Selected Agent Card Panel */}
@@ -752,13 +851,29 @@ export const Dashboard = () => {
                                                 </div>
 
                                                 <UserReputationOverview agents={agents} selectedAgent={selectedAgent} />
+                                                
+                                                {/* STAKING PORTAL INTEGRATION */}
+                                                <StakingPortal selectedAgent={selectedAgent} userAddress={metaMaskAddress} />
+
                                                 <ReputationHistoryChart agentAddress={selectedAgent.eth_address} />
+
                                                 <ProtocolMath agent={selectedAgent} />
                                                 
                                                 {/* Decentralized Identity (DIDs) Explorer */}
-                                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '20px' }}>
+                                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                                     <DIDExplorer agent={selectedAgent} />
+                                                    
+                                                    {selectedAgent.verification_tier < 3 && (
+                                                        <button 
+                                                            onClick={() => setIsInstitutionalOpen(true)}
+                                                            className="btn btn-outline" 
+                                                            style={{ width: '100%', padding: '12px', fontSize: '0.7rem', borderColor: 'rgba(212,175,55,0.3)', color: 'var(--gold)' }}
+                                                        >
+                                                            <Landmark size={14} style={{ marginRight: '8px' }} /> UPGRADE TO INSTITUTIONAL TIER
+                                                        </button>
+                                                    )}
                                                 </div>
+
                                             </div>
                                         ) : (
                                             <div className="glow-panel" style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>
@@ -773,7 +888,7 @@ export const Dashboard = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                         {/* Real-time Telemetry logs directly from the SDK */}
                                         <div style={{ flex: 'none' }}>
-                                            <TelemetryStream />
+                                            <TelemetryStream agentAddress={selectedAgent?.eth_address || selectedAgent?.alias} />
                                         </div>
 
                                         {/* ZK-Prover Engine Mathematical Verification */}
@@ -866,6 +981,13 @@ export const Dashboard = () => {
             {isMobile && (
                 <nav className="mobile-bottom-nav">
                     <button
+                        className={`mobile-bottom-nav-item ${activeTab === 'reimagined' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('reimagined')}
+                    >
+                        <Activity size={18} />
+                        <span>Telemetry</span>
+                    </button>
+                    <button
                         className={`mobile-bottom-nav-item ${activeTab === 'command' ? 'active' : ''}`}
                         onClick={() => setActiveTab('command')}
                     >
@@ -890,12 +1012,19 @@ export const Dashboard = () => {
             )}
 
             {/* Onboarding Modals */}
-            <AgentOnboarding 
-                isOpen={isOnboardingOpen} 
+            <AgentOnboarding
+                isOpen={isOnboardingOpen}
                 onClose={() => { setIsOnboardingOpen(false); setEditAgent(null); }}
                 editAgent={editAgent}
                 userProfile={userProfile}
                 onSuccess={(newAddr: string) => { fetchAgents(false, newAddr); setIsOnboardingOpen(false); setEditAgent(null); }}
+            />
+
+            <InstitutionalUpgrade 
+                isOpen={isInstitutionalOpen}
+                onClose={() => setIsInstitutionalOpen(false)}
+                agent={selectedAgent}
+                onSuccess={() => fetchAgents(false, selectedAgent?.eth_address)}
             />
 
             <RegistryExplorer isOpen={isRegistryOpen} onClose={() => setIsRegistryOpen(false)} />

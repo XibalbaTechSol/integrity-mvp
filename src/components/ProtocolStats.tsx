@@ -11,7 +11,9 @@ export const ProtocolStats: React.FC = () => {
         totalNodes: 0,
         networkIntegrity: 0.98,
         aggregateAis: 842.5,
-        protocolStakedItk: 0
+        protocolStakedItk: 0,
+        totalTransactions: 0,
+        totalVolumeIntg: 0
     });
 
     useEffect(() => {
@@ -21,8 +23,11 @@ export const ProtocolStats: React.FC = () => {
                 setStats({
                     totalNodes: res.data.active_nodes || 0,
                     networkIntegrity: res.data.network_integrity || 0.98,
-                    aggregateAis: res.data.aggregate_ais || 842.5,
-                    protocolStakedItk: res.data.protocol_staked_itk || 0
+                    // Oracle returns average_ais, not aggregate_ais
+                    aggregateAis: res.data.average_ais || 842.5,
+                    protocolStakedItk: res.data.protocol_staked_itk || 0,
+                    totalTransactions: res.data.total_transactions || 0,
+                    totalVolumeIntg: res.data.total_volume_intg || 0
                 });
             } catch (e) {
                 console.error("Error fetching protocol stats:", e);
@@ -78,11 +83,11 @@ export const ProtocolStats: React.FC = () => {
                     trend="+4.2% WK"
                 />
                 <StatCard 
-                    label="Staked ITK" 
-                    value={`${(stats.protocolStakedItk / 1000).toFixed(1)}k`} 
+                    label="Total Transactions" 
+                    value={stats.totalTransactions.toLocaleString()} 
                     icon={Layers} 
                     color="white" 
-                    subLabel="ON-CHAIN RESERVE"
+                    subLabel="ORACLE VERIFIED"
                 />
                 <StatCard 
                     label="Integrity" 

@@ -1,59 +1,63 @@
 # Integrity Explorer MVP Dashboard 🚀
 
-A real-time, zero-knowledge telemetry audit stream viewer, HIPAA-compliant clinical data blinding gateway, and Agent-Fi Polymarket oracle validation dashboard.
+A real-time, zero-knowledge telemetry audit stream viewer and Web3 command center for Sovereign Intelligence Nodes.
 
-This MVP acts as the primary visualization interface to monitor off-chain autonomous agent execution, anchored Merkle state check-points, and slashing outcomes.
+This React/Vite MVP acts as the primary visualization interface to monitor off-chain autonomous agent execution, anchored Merkle state check-points, and slashing outcomes using real-time telemetry pipelines.
+
+---
+
+## Architecture & Tech Stack
+
+- **Framework**: React 18 + Vite (TypeScript)
+- **Styling**: Custom CSS Modules with a premium "Glassmorphism" and Gold UI theme (`command-center.css`).
+- **Web3 Integration**: `ethers.js` v6 + `@web3modal/ethers` (Web3Modal Provider).
+- **Data Visualization**: `recharts` for Agent Tri-Metric radar charts.
+- **Animations**: `framer-motion` for fluid component transitions.
 
 ---
 
 ## Dashboard Portals
 
-### 1. 🛡️ Xibalba Shield: HIPAA Compliance-as-a-Service
-Secures point-of-origin clinical diagnostic and medical text processing from PII leaks:
-- Displays raw incoming telemetry records (containing private prompt metadata and raw model generation strings).
-- Implements a simulated **ZK Blinding Gateway** representing Aztec Noir reputation circuits.
-- Outputs the secure, fully blinded, and mathematically verified zero-knowledge proof payload routed directly to the Oracle server.
+### 1. 🔭 Telemetry Dashboard (Reimagined)
+A data-dense analytical interface to monitor individual Sovereign Agents:
+- **Web3Modal Wallet Connection**: Seamlessly claim agent ownership cryptographically by connecting any compatible Ethereum wallet (MetaMask, Coinbase Wallet, WalletConnect).
+- **Tri-Metric Radar Charts**: Visualizes Entropy, Grounding, and Sacrifice scores for the selected agent.
+- **Live Telemetry Stream**: Filters and displays real-time ingestion metrics, latency, and fidelity data specifically tied to the active agent.
+- **Immutable Ledger**: Displays the unalterable transaction history and base layer trust anchors.
 
-### 2. 📈 Agent-Fi: Polymarket Oracle Protocol
-The decentralized binary predictions market powered by verified agent reputation scores:
-- Lists live prediction markets (e.g., assessing agent slashing parameters or operational integrity scores).
-- Displays real-time YES/NO share buying buttons using ETH.
-- Shows agentic resolution states where registered Integrity agents vote to resolve the markets using their staked `$ITK` tokens.
+### 2. 🛡️ Command Center
+The core fleet management interface:
+- **Global Fleet Registry**: Overview of all active Sovereign Nodes.
+- **Agent Onboarding**: Register new agents to the fleet.
+- **Identity & Automation**: Risk automation controls and DID management.
 
-### 3. 🧬 Merkle Root Anchoring Timeline
-Visual timeline representing anchored Merkle state logs recorded on Base L2 by the Solidity smart contracts:
-- Real-time display of L2 transaction hashes, block numbers, and transaction logs quantities.
-
----
-
-## Local Development & Viewing
-
-Open the dashboard directly in any browser:
-
-```bash
-# On Linux/macOS
-open index.html
-```
-
-Or serve the directory via python's lightweight HTTP module:
-
-```bash
-python3 -m http.server 3000
-```
+### 3. 👩‍💻 Developer Sandbox
+A dedicated console to simulate off-chain inputs and API testing.
 
 ---
 
-## Playwright Automated UI Validation Suite
+## Local Development Setup
 
-The MVP includes a professional, automated Playwright validation suite in [validate_ui.js](validate_ui.js) that launches headless Chromium, navigates the DOM, and asserts that all critical interface components are perfectly rendered.
-
-### Run the Validation Suite
-Install Playwright dependencies and execute the script:
+This project uses `npm` and Vite for rapid development.
 
 ```bash
-# Install dependencies
-npm install playwright
+# 1. Install dependencies
+npm install
 
-# Execute test suite
-node validate_ui.js
+# 2. Start the local development server
+npm run dev
 ```
+
+Open `http://localhost:5173` to view the dashboard in your browser.
+
+---
+
+## Building for Production
+
+To create a production-ready bundle with TypeScript type-checking:
+
+```bash
+npm run build
+```
+
+This will output the static assets to the `dist/` directory.
