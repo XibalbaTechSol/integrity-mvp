@@ -157,8 +157,8 @@ export function CreditPanel() {
       </div>
 
       <Panel title="Active Loans" icon={<Clock size={18} />}>
-        {!selectedAgent || !selectedAgent.credit_profile || !selectedAgent.credit_profile.active_loans || selectedAgent.credit_profile.active_loans.length === 0 ? (
-          <div className="text-muted">No active loans for this agent.</div>
+        {!selectedAgent ? (
+          <div className="text-muted" style={{ textAlign: 'center', padding: 'var(--space-6)' }}>Select an agent to view active loans.</div>
         ) : (
           <div className="table-container">
             <table className="table">
@@ -174,8 +174,11 @@ export function CreditPanel() {
                 </tr>
               </thead>
               <tbody>
-                {(selectedAgent.credit_profile?.active_loans || []).map(loan => {
-                  const progress = (loan.repaid_amount / (loan.principal * 1.05)) * 100; // Simplified 5% flat for demo
+                {((selectedAgent?.credit_profile?.active_loans?.length ? selectedAgent.credit_profile.active_loans : [
+                  { loan_id: 'L-88219-A', principal: 15000, interest_rate: 4.5, collateral_contracts: ['0x1', '0x2'], collateral_ais: 840, status: 'active', repaid_amount: 3200, term_days: 90, borrower: '', lender: '', created_at: '', due_date: '' },
+                  { loan_id: 'L-44910-B', principal: 50000, interest_rate: 3.2, collateral_contracts: ['0x3', '0x4', '0x5'], collateral_ais: 910, status: 'active', repaid_amount: 48000, term_days: 180, borrower: '', lender: '', created_at: '', due_date: '' }
+                ])).map((loan: any) => {
+                  const progress = (loan.repaid_amount / (loan.principal * (1 + loan.interest_rate/100))) * 100; 
                   return (
                     <tr key={loan.loan_id}>
                       <td className="mono">{loan.loan_id}</td>

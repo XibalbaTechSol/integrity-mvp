@@ -3,7 +3,6 @@ import { useDashboard } from '../../context/DashboardContext';
 import { Panel } from '../shared/Panel';
 import { Hammer, Code, RefreshCw } from 'lucide-react';
 import { api } from '../../services/api';
-import Editor from '@monaco-editor/react';
 
 export function FactoryPanel() {
   const { addToast } = useDashboard();
@@ -97,14 +96,25 @@ export function FactoryPanel() {
               </div>
             </div>
 
-            <div style={{ flex: 1, minHeight: '300px', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-              <Editor
-                height="100%"
-                language={language}
-                theme="vs-dark"
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+              <textarea
                 value={code}
-                onChange={(val) => setCode(val || '')}
-                options={{ minimap: { enabled: false }, fontSize: 12, scrollBeyondLastLine: false }}
+                onChange={(e) => setCode(e.target.value)}
+                className="mono"
+                style={{
+                  width: '100%',
+                  minHeight: '350px',
+                  flex: 1,
+                  background: '#0a0a0c',
+                  color: 'var(--text-primary)',
+                  border: 'none',
+                  padding: '1rem',
+                  fontSize: '0.85rem',
+                  resize: 'vertical',
+                  outline: 'none',
+                  lineHeight: '1.5'
+                }}
+                spellCheck="false"
               />
             </div>
 

@@ -94,6 +94,8 @@ export interface Agent {
   alias: string;
   model_class: string;
   current_ais: number;
+  verification_tier: number;
+  compliance_score: number;
   entropy_score: number;
   grounding_score: number;
   sacrifice_score: number;

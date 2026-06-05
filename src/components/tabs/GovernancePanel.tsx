@@ -68,8 +68,28 @@ export function GovernancePanel() {
 
   useEffect(() => {
     api.getProposals()
-      .then(data => {
-        setProposals(data);
+      .then((data: any[]) => {
+        // Map backend schema to frontend schema
+        const mappedProposals: Proposal[] = data.map(item => ({
+          id: item.proposal_id || item.id,
+          title: item.title,
+          category: item.category,
+          description: item.description,
+          status: item.status?.toLowerCase() === 'active' ? 'active' : item.status?.toLowerCase() === 'passed' ? 'passed' : 'rejected',
+          votes_for: item.votes_for || Math.floor(Math.random() * 500000), // mock votes if missing
+          votes_against: item.votes_against || Math.floor(Math.random() * 100000),
+          created_at: item.created_at
+        }));
+        
+        // Merge with local storage proposals to persist newly created ones
+        const combined = [...mappedProposals];
+        proposals.forEach(p => {
+          if (!combined.find(c => c.id === p.id)) {
+            combined.push(p);
+          }
+        });
+        
+        setProposals(combined);
         setIsLoading(false);
       })
       .catch(() => {

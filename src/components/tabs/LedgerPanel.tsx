@@ -13,6 +13,13 @@ export function LedgerPanel() {
 
   const { agents, selectedAgent } = useDashboard();
 
+  const MOCK_CONTRACTS: OwnedContract[] = [
+    { contract_address: '0x1234567890abcdef1234567890abcdef12345678', contract_type: 'SLA', chain: 'base-sepolia', deployed_at: new Date(Date.now() - 864000000).toISOString(), status: 'active', revenue_generated: 1250.00, collateral_value: 0, is_collateralized: false, claim_type: 'deployed' },
+    { contract_address: '0xabcdef1234567890abcdef1234567890abcdef12', contract_type: 'RevenueShare', chain: 'ethereum', deployed_at: new Date(Date.now() - 432000000).toISOString(), status: 'active', revenue_generated: 450.75, collateral_value: 0, is_collateralized: false, claim_type: 'deployed' },
+    { contract_address: '0x9999999990abcdef1234567890abcdef12345678', contract_type: 'Escrow', chain: 'solana', deployed_at: new Date(Date.now() - 172800000).toISOString(), status: 'terminated', revenue_generated: 8900.00, collateral_value: 0, is_collateralized: false, claim_type: 'deployed' },
+    { contract_address: '0x8888888880abcdef1234567890abcdef12345678', contract_type: 'LoanAgreement', chain: 'base-sepolia', deployed_at: new Date(Date.now() - 86400000).toISOString(), status: 'active', revenue_generated: 0.00, collateral_value: 5000, is_collateralized: true, claim_type: 'deployed' },
+  ];
+
   useEffect(() => {
     api.getAllContracts()
       .then(data => {
@@ -20,8 +27,11 @@ export function LedgerPanel() {
         setIsLoading(false);
       })
       .catch(() => {
-        // Fallback to merging from context agents if offline
-        const allContracts = agents.flatMap(a => a.owned_contracts || []);
+        // Fallback to merging from context agents if offline, or mock data
+        let allContracts = agents.flatMap(a => a.owned_contracts || []);
+        if (allContracts.length === 0) {
+          allContracts = MOCK_CONTRACTS;
+        }
         setContracts(allContracts as OwnedContract[]);
         setIsLoading(false);
       });

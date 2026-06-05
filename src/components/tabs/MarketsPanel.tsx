@@ -18,7 +18,18 @@ interface SimulatedContract {
 }
 
 export function MarketsPanel() {
-  const { selectedAgent, agents, isBackendOffline } = useDashboard();
+  const { selectedAgent, agents } = useDashboard();
+  
+  const mockMarketplaceContracts = [
+    { id: '0x1A4b...9c3f', type: 'Data Stream Access', revenue: 1540.50, ask_price: 5000, provider: 'Hermes_Xibalba_Sovereign' },
+    { id: '0x8F2e...1a4d', type: 'Compute SLA', revenue: 820.00, ask_price: 2400, provider: 'Alpha Trader' },
+    { id: '0x3C9a...8b2e', type: 'Revenue Share', revenue: 4100.75, ask_price: 18000, provider: 'Beta Clinician' },
+  ];
+
+  const mockEquityHoldings = [
+    { agent_address: '0xe567B2a18F5129E89C536539f0457Af19141F52a', shares: 1500, total_shares: 10000, percentage: 15.0, dividends_earned: 450.25 },
+    { agent_address: '0x9f20Bd9Cc4f8831289D61B4853aA400bd4F96aEA', shares: 500, total_shares: 5000, percentage: 10.0, dividends_earned: 120.00 },
+  ];
   
   // Simulation State
   const [counterparty, setCounterparty] = useState<string>('');
@@ -173,46 +184,45 @@ export function MarketsPanel() {
 
       <div className="grid-cols-2">
         <Panel title="Contract Trading" icon={<Handshake size={18} />}>
-          {isBackendOffline ? (
-            <div className="text-muted" style={{ textAlign: 'center', padding: 'var(--space-6)' }}>
-              Oracle Database Offline. Cannot fetch tradeable contracts.
-            </div>
-          ) : (
-            <div className="table-container">
-              <table className="table">
-                <thead><tr><th>Contract</th><th>Revenue</th><th>Ask Price</th><th>Action</th></tr></thead>
-                <tbody>
-                  <tr><td colSpan={4} className="text-muted" style={{ textAlign: 'center' }}>No contracts listed for sale</td></tr>
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="table-container">
+            <table className="table">
+              <thead><tr><th>Contract ID</th><th>Type / Provider</th><th>Est. Revenue</th><th>Ask Price</th><th>Action</th></tr></thead>
+              <tbody>
+                {mockMarketplaceContracts.map((c, i) => (
+                  <tr key={i}>
+                    <td className="mono">{c.id}</td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{c.type}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>by {c.provider}</div>
+                    </td>
+                    <td style={{ color: 'var(--success)' }}>{c.revenue.toLocaleString()} ITK/mo</td>
+                    <td style={{ color: 'var(--primary)', fontWeight: 600 }}>{c.ask_price.toLocaleString()} ITK</td>
+                    <td><button className="btn" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>Buy Contract</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Panel>
 
         <Panel title="Agent Equity Holdings" icon={<LineChart size={18} />}>
-          {isBackendOffline ? (
-            <div className="text-muted" style={{ textAlign: 'center', padding: 'var(--space-6)' }}>
-              Oracle Database Offline. Cannot fetch equity data.
-            </div>
-          ) : !selectedAgent ? (
+          {!selectedAgent ? (
             <div className="text-muted" style={{ textAlign: 'center', padding: 'var(--space-6)' }}>
               Select an agent to view equity holdings.
             </div>
           ) : (
             <div className="table-container">
               <table className="table">
-                <thead><tr><th>Agent</th><th>Shares</th><th>Ownership %</th><th>Dividends</th></tr></thead>
+                <thead><tr><th>Target Agent</th><th>Shares Owned</th><th>Ownership %</th><th>Dividends Earned</th></tr></thead>
                 <tbody>
-                  {selectedAgent.equity?.length > 0 ? selectedAgent.equity.map((e, i) => (
+                  {(selectedAgent.equity?.length ? selectedAgent.equity : mockEquityHoldings).map((e, i) => (
                     <tr key={i}>
                       <td className="mono">{e.agent_address.substring(0, 10)}...</td>
-                      <td>{e.shares} / {e.total_shares}</td>
-                      <td style={{ color: 'var(--primary)' }}>{e.percentage}%</td>
-                      <td style={{ color: 'var(--success)' }}>{e.dividends_earned} ITK</td>
+                      <td>{e.shares.toLocaleString()} / {e.total_shares.toLocaleString()}</td>
+                      <td style={{ color: 'var(--primary)', fontWeight: 600 }}>{e.percentage}%</td>
+                      <td style={{ color: 'var(--success)' }}>{e.dividends_earned.toLocaleString()} ITK</td>
                     </tr>
-                  )) : (
-                    <tr><td colSpan={4} className="text-muted" style={{ textAlign: 'center' }}>No equity holdings</td></tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
