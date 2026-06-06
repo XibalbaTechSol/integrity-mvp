@@ -237,4 +237,6 @@ export type TabId =
   | 'credit'
   | 'governance'
   | 'markets'
+  | 'staking'
+  | 'stability'
   | 'advanced';

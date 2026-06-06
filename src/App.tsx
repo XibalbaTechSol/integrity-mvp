@@ -14,6 +14,8 @@ import { CompliancePanel } from './components/tabs/CompliancePanel';
 import { CreditPanel } from './components/tabs/CreditPanel';
 import { GovernancePanel } from './components/tabs/GovernancePanel';
 import { MarketsPanel } from './components/tabs/MarketsPanel';
+import { StakingPanel } from './components/tabs/StakingPanel';
+import { StabilityPanel } from './components/tabs/StabilityPanel';
 import { AdvancedPanel } from './components/tabs/AdvancedPanel';
 
 function DashboardShell() {
@@ -33,8 +35,10 @@ function DashboardShell() {
           {activeTab === 'factory' && <FactoryPanel />}
           {activeTab === 'compliance' && <CompliancePanel />}
           {activeTab === 'credit' && <CreditPanel />}
-          {activeTab === 'governance' && <GovernancePanel />}
           {activeTab === 'markets' && <MarketsPanel />}
+          {activeTab === 'staking' && <StakingPanel />}
+          {activeTab === 'stability' && <StabilityPanel />}
+          {activeTab === 'governance' && <GovernancePanel />}
           {activeTab === 'advanced' && <AdvancedPanel />}
         </main>
       </div>

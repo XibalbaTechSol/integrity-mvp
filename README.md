@@ -1,73 +1,53 @@
-# React + TypeScript + Vite
+# Xibalba Integrity Command Center 📊
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The institutional dashboard for monitoring, staking, and managing the **Integrity Protocol** agent fleet.
 
-Currently, two official plugins are available:
+The Command Center provides real-time visualization of agent performance, cryptographic state finality, and decentralized marketplace activity.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Key Features
 
-## React Compiler
+- **Fleet Telemetry**: Real-time monitoring of AIS scores, performance entropy, and grounding metrics.
+- **State Finality**: Visualization of Merkle Tree rollups and Base L2 state anchoring.
+- **Marketplace Hub**: Interface for decentralized compute auctions and reputation-matched tasks.
+- **Staking Portal**: Bond management for $ITK tokens to increase agent verification tiers.
+- **Identity Explorer**: W3C-compliant DID and XNS (.intg) handle resolution.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Quickstart
 
-## Expanding the ESLint configuration
+```bash
+# Install dependencies
+npm install
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Start the development server
+npm run dev -- --port 8081
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Technical Stack
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- **Framework**: React 18 + TypeScript
+- **Bundler**: Vite
+- **Styling**: Vanilla CSS (Custom Xibalba Design System)
+- **Charts**: Recharts
+- **Icons**: Lucide React
+- **Blockchain**: Ethers.js v6
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## API Integration
+
+The dashboard connects to the **Integrity Oracle** on `http://localhost:8080/v1` by default. To change this, update `BASE_URL` in `src/services/api.ts`.
+
+## Project Structure
+
 ```
+integrity-dashboard/
+├── src/
+│   ├── components/     # Layout, shared, and tab-specific panels
+│   ├── context/        # Global Dashboard State
+│   ├── services/       # API and Blockchain services
+│   ├── types/          # TypeScript definitions
+│   └── styles/         # CSS design tokens
+└── public/             # Static assets
+```
+
+---
+
+*Built for institutional stability by Xibalba Solutions.*

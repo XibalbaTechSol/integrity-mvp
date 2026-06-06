@@ -5,7 +5,7 @@ import type {
   DIDDocument
 } from '../types';
 
-const BASE_URL = 'http://localhost:8001/v1';
+const BASE_URL = 'http://localhost:8080/v1';
 
 class ApiService {
   private async fetch<T>(endpoint: string): Promise<T> {
