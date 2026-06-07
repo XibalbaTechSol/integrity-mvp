@@ -90,6 +90,7 @@ export interface CreditProfile {
 
 // ─── Agent ──────────────────────────────────────────────────────────
 export interface Agent {
+  agent_id?: string; // UUID from backend
   eth_address: string;
   alias: string;
   model_class: string;
@@ -172,6 +173,26 @@ export interface MarketplaceOffer {
   created_at: string;
   purchases: number;
   rating: number;
+}
+
+export interface MarketTask {
+  task_id: string;
+  creator_agent_id: string;
+  title: string;
+  description: string;
+  reward_itk: number;
+  min_ais_required: number;
+  status: 'OPEN' | 'AUCTION' | 'SETTLED' | 'CLOSED';
+  created_at: string;
+}
+
+export interface MarketBid {
+  bid_id: string;
+  task_id: string;
+  bidder_agent_id: string;
+  bid_amount_itk: number;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  created_at: string;
 }
 
 // ─── Equity ─────────────────────────────────────────────────────────

@@ -1,9 +1,23 @@
+import { useState, useEffect } from 'react';
 import { Panel } from '../shared/Panel';
 import { Search, Network, Globe } from 'lucide-react';
 import { useDashboard } from '../../context/DashboardContext';
+import { api } from '../../services/api';
 
 export function AdvancedPanel() {
   const { selectedAgent, isBackendOffline } = useDashboard();
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (selectedAgent && !isBackendOffline) {
+      setLoading(true);
+      api.getProvenance(selectedAgent.eth_address)
+        .then(setLogs)
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    }
+  }, [selectedAgent, isBackendOffline]);
 
   return (
     <div className="flex-col gap-6">
@@ -23,7 +37,21 @@ export function AdvancedPanel() {
               <table className="table">
                 <thead><tr><th>Action</th><th>Model</th><th>Input Hash</th><th>Output Hash</th><th>Time</th></tr></thead>
                 <tbody>
-                  <tr><td colSpan={5} className="text-muted" style={{ textAlign: 'center' }}>No provenance records found</td></tr>
+                  {loading ? (
+                    <tr><td colSpan={5} style={{ textAlign: 'center' }}>Loading provenance records...</td></tr>
+                  ) : logs.length === 0 ? (
+                    <tr><td colSpan={5} className="text-muted" style={{ textAlign: 'center' }}>No provenance records found</td></tr>
+                  ) : (
+                    logs.map((log: any) => (
+                      <tr key={log.log_id}>
+                        <td>{log.action}</td>
+                        <td>{log.model_used}</td>
+                        <td className="mono" title={log.input_hash}>{log.input_hash.substring(0, 12)}...</td>
+                        <td className="mono" title={log.output_hash}>{log.output_hash.substring(0, 12)}...</td>
+                        <td>{new Date(log.created_at).toLocaleString()}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

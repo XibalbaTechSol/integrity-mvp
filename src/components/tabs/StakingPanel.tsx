@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Panel } from '../shared/Panel';
-import { Lock, Coins, TrendingUp, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Lock, Coins, TrendingUp, AlertTriangle } from 'lucide-react';
 import { useDashboard } from '../../context/DashboardContext';
+import { api } from '../../services/api';
 
 export function StakingPanel() {
-  const { selectedAgent, addToast } = useDashboard();
+  const { selectedAgent, addToast, fetchData } = useDashboard();
   const [stakeAmount, setStakeAmount] = useState<string>('');
   const [isStaking, setIsStaking] = useState(false);
 
@@ -12,12 +13,16 @@ export function StakingPanel() {
     if (!selectedAgent || !stakeAmount) return;
     
     setIsStaking(true);
-    // Simulate on-chain transaction
-    await new Promise(r => setTimeout(r, 2000));
-    
-    addToast('success', `Successfully staked ${stakeAmount} ITK for ${selectedAgent.alias}`);
-    setStakeAmount('');
-    setIsStaking(false);
+    try {
+      await api.stake(selectedAgent.eth_address, parseFloat(stakeAmount));
+      addToast('success', `Successfully staked ${stakeAmount} ITK for ${selectedAgent.alias}`);
+      setStakeAmount('');
+      if (fetchData) await fetchData();
+    } catch (err: any) {
+      addToast('error', `Staking failed: ${err.message}`);
+    } finally {
+      setIsStaking(false);
+    }
   };
 
   return (

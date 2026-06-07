@@ -1,19 +1,66 @@
+import { useState, useEffect } from 'react';
 import { Panel } from '../shared/Panel';
-import { BarChart2, Zap, Globe, ShieldCheck } from 'lucide-react';
+import { BarChart2, Globe, ShieldCheck, RefreshCw } from 'lucide-react';
 import { StatusBadge } from '../shared/StatusBadge';
+import { useDashboard } from '../../context/DashboardContext';
+import { api } from '../../services/api';
 
 export function StabilityPanel() {
-  const llmProviders = [
-    { name: 'GPT-4o', provider: 'OpenAI', ais: 982, stability: 99.4, grounding: 98.1, status: 'certified' },
-    { name: 'Claude 3.5 Sonnet', provider: 'Anthropic', ais: 978, stability: 99.1, grounding: 98.5, status: 'certified' },
-    { name: 'Gemini 1.5 Pro', provider: 'Google', ais: 965, stability: 97.8, grounding: 96.2, status: 'certified' },
-    { name: 'Llama 3 70B', provider: 'Meta (Groq)', ais: 942, stability: 96.5, grounding: 91.0, status: 'certified' },
-    { name: 'Mistral Large 2', provider: 'Mistral', ais: 915, stability: 94.2, grounding: 89.5, status: 'pending' },
-  ];
+  const [benchmarks, setBenchmarks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isAuditing, setIsAuditing] = useState(false);
+  const { selectedAgent, addToast } = useDashboard();
+
+  useEffect(() => {
+    fetchBenchmarks();
+  }, []);
+
+  const fetchBenchmarks = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getBenchmarks();
+      setBenchmarks(data);
+    } catch (err) {
+      console.error('Failed to fetch benchmarks:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartAudit = async () => {
+    if (!selectedAgent) {
+      addToast('info', 'Please select an agent first');
+      return;
+    }
+    
+    setIsAuditing(true);
+    try {
+      await api.requestAudit(selectedAgent.eth_address, 'AUTOMATED');
+      addToast('success', 'Institutional certification audit initialized');
+    } catch (err: any) {
+      addToast('error', `Audit request failed: ${err.message}`);
+    } finally {
+      setIsAuditing(false);
+    }
+  };
+
+  const getStatus = (stability: number, grounding: number) => {
+    if (stability >= 0.95 && grounding >= 0.95) return 'certified';
+    if (stability >= 0.90 && grounding >= 0.90) return 'pending';
+    return 'warning';
+  };
 
   return (
     <div className="flex-col gap-6">
-      <Panel title="Stability Leaderboard" icon={<BarChart2 size={18} />}>
+      <Panel 
+        title="Stability Leaderboard" 
+        icon={<BarChart2 size={18} />}
+        action={
+          <button className="btn btn-icon" onClick={fetchBenchmarks} disabled={loading}>
+            <RefreshCw size={14} className={loading ? 'spin' : ''} />
+          </button>
+        }
+      >
         <div className="flex-col gap-4">
           <div className="text-muted" style={{ fontSize: '0.875rem' }}>
             Public ranking of LLM providers by performance variance (Entropy) and grounding fidelity.
@@ -25,32 +72,42 @@ export function StabilityPanel() {
               <thead>
                 <tr>
                   <th>Model / Provider</th>
-                  <th>Avg. AIS</th>
+                  <th>Simulated AIS</th>
                   <th>Stability (1-E)</th>
                   <th>Grounding</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {llmProviders.map((p, i) => (
-                  <tr key={i}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{p.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.provider}</div>
-                    </td>
-                    <td className="mono" style={{ color: 'var(--primary)', fontWeight: 600 }}>{p.ais}</td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <div style={{ width: '60px', height: '4px', background: 'var(--bg-secondary)', borderRadius: '2px', overflow: 'hidden' }}>
-                          <div style={{ width: `${p.stability}%`, height: '100%', background: 'var(--success)' }}></div>
-                        </div>
-                        <span className="mono" style={{ fontSize: '0.75rem' }}>{p.stability}%</span>
-                      </div>
-                    </td>
-                    <td className="mono" style={{ fontSize: '0.875rem' }}>{p.grounding}%</td>
-                    <td><StatusBadge status={p.status} /></td>
-                  </tr>
-                ))}
+                {loading ? (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>Fetching live stability metrics...</td></tr>
+                ) : benchmarks.length === 0 ? (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>No benchmark data available. Oracle is accumulating telemetry.</td></tr>
+                ) : (
+                  benchmarks.map((p, i) => {
+                    const stabilityPct = (p.stability_metric * 100).toFixed(1);
+                    const groundingPct = (p.grounding_metric * 100).toFixed(1);
+                    return (
+                      <tr key={i}>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{p.model_name}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.provider_name}</div>
+                        </td>
+                        <td className="mono" style={{ color: 'var(--primary)', fontWeight: 600 }}>{p.simulated_ais}</td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <div style={{ width: '60px', height: '4px', background: 'var(--bg-secondary)', borderRadius: '2px', overflow: 'hidden' }}>
+                              <div style={{ width: `${stabilityPct}%`, height: '100%', background: 'var(--success)' }}></div>
+                            </div>
+                            <span className="mono" style={{ fontSize: '0.75rem' }}>{stabilityPct}%</span>
+                          </div>
+                        </td>
+                        <td className="mono" style={{ fontSize: '0.875rem' }}>{groundingPct}%</td>
+                        <td><StatusBadge status={getStatus(p.stability_metric, p.grounding_metric)} /></td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -103,8 +160,13 @@ export function StabilityPanel() {
               <span className="mono" style={{ fontWeight: 600 }}>8,421</span>
             </div>
 
-            <button className="btn btn-primary" style={{ marginTop: 'auto' }}>
-              Start Certification Audit
+            <button 
+              className="btn btn-primary" 
+              style={{ marginTop: 'auto' }}
+              onClick={handleStartAudit}
+              disabled={isAuditing || !selectedAgent}
+            >
+              {isAuditing ? <RefreshCw className="animate-spin" size={16} /> : 'Start Certification Audit'}
             </button>
           </div>
         </Panel>

@@ -82,12 +82,26 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         api.getAgents(),
         api.getProtocolStats()
       ]);
-      setAgents(fetchedAgents || []);
+      
+      let allAgents = fetchedAgents || [];
+      
+      // If an agent is selected, enrich it with credit profile
+      const currentAddr = selectedAgentAddr || (allAgents.length > 0 ? allAgents[0].eth_address : null);
+      if (currentAddr) {
+        try {
+          const credit = await api.getCreditProfile(currentAddr);
+          allAgents = allAgents.map(a => a.eth_address === currentAddr ? { ...a, credit_profile: credit } : a);
+        } catch (e) {
+          console.warn("Credit profile fetch failed", e);
+        }
+      }
+
+      setAgents(allAgents);
       setStats(fetchedStats || null);
       setIsBackendOffline(false);
       
-      if (!selectedAgentAddr && fetchedAgents?.length > 0) {
-        setSelectedAgentAddr(fetchedAgents[0].eth_address);
+      if (!selectedAgentAddr && allAgents.length > 0) {
+        setSelectedAgentAddr(allAgents[0].eth_address);
       }
     } catch (error) {
       setIsBackendOffline(true);

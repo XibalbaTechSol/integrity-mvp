@@ -2,7 +2,8 @@ import axios from 'axios';
 import type { 
   Agent, ProtocolStats, OwnedContract,
   ReputationPoint,
-  DIDDocument
+  DIDDocument,
+  MarketTask
 } from '../types';
 
 const BASE_URL = 'http://localhost:8080/v1';
@@ -65,9 +66,25 @@ class ApiService {
     return this.post('/contracts/factory/deploy', data);
   }
 
+  async listMarketContract(data: any): Promise<any> {
+    return this.post('/contracts/list-market', data);
+  }
+
   // --- Loans ---
+  async getCreditProfile(address: string): Promise<any> {
+    return this.fetch(`/agent/${address}/credit/profile`);
+  }
+
   async borrow(address: string, data: any): Promise<any> {
     return this.post(`/agent/${address}/credit/borrow`, data);
+  }
+
+  async repay(address: string, data: any): Promise<any> {
+    return this.post(`/agent/${address}/credit/repay`, data);
+  }
+
+  async fundTaskWithLoan(data: any): Promise<any> {
+    return this.post('/market/task/fund-with-loan', data);
   }
 
   // --- Reputation ---
@@ -91,6 +108,42 @@ class ApiService {
 
   async voteProposal(id: string, vote: string): Promise<any> {
     return this.post(`/governance/proposals/${id}/vote`, { vote });
+  }
+
+  // --- Staking ---
+  async stake(address: string, amount_itk: number): Promise<any> {
+    return this.post(`/agent/${address}/stake`, { amount_itk });
+  }
+
+  // --- Marketplace ---
+  async getMarketTasks(): Promise<MarketTask[]> {
+    return this.fetch('/market/tasks');
+  }
+
+  async createMarketTask(data: any): Promise<any> {
+    return this.post('/market/task/create', data);
+  }
+
+  async bidOnTask(data: any): Promise<any> {
+    return this.post('/market/task/bid', data);
+  }
+
+  async settleAuction(taskId: string): Promise<any> {
+    return this.post('/market/task/settle', { task_id: taskId });
+  }
+
+  // --- Advanced / Provenance ---
+  async getProvenance(address: string): Promise<any[]> {
+    return this.fetch(`/agent/${address}/provenance`);
+  }
+
+  // --- Stability Benchmarks ---
+  async getBenchmarks(): Promise<any[]> {
+    return this.fetch(`/stability/benchmarks`);
+  }
+
+  async requestAudit(address: string, type: string): Promise<any> {
+    return this.post('/audit/request', { agent_address: address, audit_type: type });
   }
 
   // --- Telemetry ---

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useDashboard } from '../../context/DashboardContext';
 import { Panel } from '../shared/Panel';
 import { StatusBadge } from '../shared/StatusBadge';
-import { Coins, HandCoins, Clock } from 'lucide-react';
+import { Coins, HandCoins, Clock, RefreshCw } from 'lucide-react';
 import { api } from '../../services/api';
 
 export function CreditPanel() {
@@ -11,45 +11,45 @@ export function CreditPanel() {
   // Loan Form State
   const [borrowAmount, setBorrowAmount] = useState('5000');
   const [termDays, setTermDays] = useState('30');
-  const [selectedCollateral, setSelectedCollateral] = useState<string[]>([]);
+  const [isSubmitting, setIsBorrowing] = useState(false);
 
   // Derived calculations
   const p = parseFloat(borrowAmount) || 0;
   const ais = selectedAgent?.current_ais || 500;
   const interestRate = Math.max(1.5, 12 - (ais / 100)); // Dynamic rate based on AIS
-  const isOverLimit = p > (selectedAgent?.credit_profile?.max_borrow_limit || 0);
-
-  const availableCollateral = selectedAgent?.owned_contracts?.filter(c => !c.is_collateralized) || [];
-  const selectedCollateralValue = availableCollateral
-    .filter(c => selectedCollateral.includes(c.contract_address))
-    .reduce((sum, c) => sum + c.collateral_value, 0);
+  const isOverLimit = p > (selectedAgent?.credit_profile?.max_borrow_limit || 10000);
 
   const handleBorrow = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAgent) return;
-    if (selectedCollateralValue < p) {
-      addToast('error', 'Insufficient collateral value selected');
-      return;
-    }
-
+    
+    setIsBorrowing(true);
     try {
       await api.borrow(selectedAgent.eth_address, {
-        amount: p,
-        term_days: parseInt(termDays),
-        collateral_contracts: selectedCollateral
+        amount_itk: p,
+        term_days: parseInt(termDays)
       });
-      addToast('success', 'Loan approved and funded');
-      setSelectedCollateral([]);
+      addToast('success', 'Loan approved and funded via protocol credit');
       fetchData();
-    } catch (err) {
-      addToast('error', 'Loan application failed');
+    } catch (err: any) {
+      addToast('error', `Loan failed: ${err.message}`);
+    } finally {
+      setIsBorrowing(false);
     }
   };
 
-  const toggleCollateral = (addr: string) => {
-    setSelectedCollateral(prev => 
-      prev.includes(addr) ? prev.filter(a => a !== addr) : [...prev, addr]
-    );
+  const handleRepay = async (loanId: string, amount: number) => {
+    if (!selectedAgent) return;
+    try {
+      await api.repay(selectedAgent.eth_address, {
+        loan_id: loanId,
+        amount_itk: amount
+      });
+      addToast('success', 'Repayment processed successfully');
+      fetchData();
+    } catch (err: any) {
+      addToast('error', `Repayment failed: ${err.message}`);
+    }
   };
 
   return (
@@ -68,11 +68,11 @@ export function CreditPanel() {
               </div>
               <div className="flex justify-between" style={{ padding: 'var(--space-2) 0', borderTop: '1px solid var(--glass-border)' }}>
                 <span className="text-muted" style={{ fontSize: '0.875rem' }}>Borrow Limit</span>
-                <span className="mono" style={{ color: 'var(--success)' }}>${(selectedAgent?.credit_profile?.max_borrow_limit || 0).toLocaleString()}</span>
+                <span className="mono" style={{ color: 'var(--success)' }}>{(selectedAgent?.credit_profile?.max_borrow_limit || 0).toLocaleString()} ITK</span>
               </div>
               <div className="flex justify-between" style={{ padding: 'var(--space-2) 0', borderTop: '1px solid var(--glass-border)' }}>
                 <span className="text-muted" style={{ fontSize: '0.875rem' }}>Total Borrowed</span>
-                <span className="mono">${(selectedAgent?.credit_profile?.total_borrowed || 0).toLocaleString()}</span>
+                <span className="mono">{(selectedAgent?.credit_profile?.total_borrowed || 0).toLocaleString()} ITK</span>
               </div>
               <div className="flex justify-between" style={{ padding: 'var(--space-2) 0', borderTop: '1px solid var(--glass-border)' }}>
                 <span className="text-muted" style={{ fontSize: '0.875rem' }}>Defaults</span>
@@ -100,57 +100,29 @@ export function CreditPanel() {
                   <option value="90">90 Days</option>
                 </select>
               </div>
-              <div style={{ background: 'var(--bg-primary)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--glass-border)' }}>
+            </div>
+
+            <div className="flex-col gap-4">
+              <div style={{ background: 'var(--bg-primary)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--glass-border)', height: '100%' }}>
                 <div className="flex justify-between mb-2">
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Interest Rate (APR)</span>
                   <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--gold)' }}>{interestRate.toFixed(2)}%</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between mb-4">
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Estimated Repayment</span>
                   <span className="mono" style={{ fontSize: '1rem', fontWeight: 700 }}>
                     {(p * (1 + (interestRate / 100) * (parseInt(termDays) / 365))).toFixed(2)} ITK
                   </span>
                 </div>
-              </div>
-            </div>
+                
+                <div style={{ padding: 'var(--space-2)', background: 'var(--primary-dim)', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', color: 'var(--text-primary)' }}>
+                   Collateral is automatically bound to your Agent's verified ITK stake and future revenue stream.
+                </div>
 
-            <div className="flex-col gap-4">
-              <div>
-                <label className="form-label">Select Contract Collateral</label>
-                <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)' }}>
-                  {availableCollateral.length === 0 ? (
-                    <div style={{ padding: 'var(--space-3)', fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center' }}>No free contracts available</div>
-                  ) : availableCollateral.map(c => (
-                    <div 
-                      key={c.contract_address}
-                      onClick={() => toggleCollateral(c.contract_address)}
-                      style={{ 
-                        padding: 'var(--space-2) var(--space-3)', 
-                        borderBottom: '1px solid var(--glass-border)',
-                        background: selectedCollateral.includes(c.contract_address) ? 'var(--primary-dim)' : 'transparent',
-                        cursor: 'pointer',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>{c.contract_type}</div>
-                        <div className="mono" style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{c.contract_address.substring(0, 10)}...</div>
-                      </div>
-                      <div className="mono" style={{ fontSize: '0.75rem', color: 'var(--success)' }}>${c.collateral_value}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-between mt-2" style={{ fontSize: '0.75rem' }}>
-                  <span className="text-muted">Selected Value:</span>
-                  <span className="mono" style={{ color: selectedCollateralValue >= p ? 'var(--success)' : 'var(--danger)' }}>
-                    ${selectedCollateralValue.toLocaleString()} / ${p.toLocaleString()} needed
-                  </span>
-                </div>
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 'var(--space-4)' }} disabled={!selectedAgent || isOverLimit || isSubmitting}>
+                  {isSubmitting ? <RefreshCw className="spin" size={16} /> : 'Submit Loan Application'}
+                </button>
               </div>
-              
-              <button type="submit" className="btn btn-primary" style={{ marginTop: 'auto' }} disabled={!selectedAgent || isOverLimit || selectedCollateralValue < p}>
-                Submit Loan Application
-              </button>
             </div>
           </form>
         </Panel>
@@ -167,31 +139,26 @@ export function CreditPanel() {
                   <th>Loan ID</th>
                   <th>Principal</th>
                   <th>APR</th>
-                  <th>Collateral</th>
+                  <th>Due Date</th>
                   <th>Status</th>
                   <th>Repayment</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {((selectedAgent?.credit_profile?.active_loans?.length ? selectedAgent.credit_profile.active_loans : [
-                  { loan_id: 'L-88219-A', principal: 15000, interest_rate: 4.5, collateral_contracts: ['0x1', '0x2'], collateral_ais: 840, status: 'active', repaid_amount: 3200, term_days: 90, borrower: '', lender: '', created_at: '', due_date: '' },
-                  { loan_id: 'L-44910-B', principal: 50000, interest_rate: 3.2, collateral_contracts: ['0x3', '0x4', '0x5'], collateral_ais: 910, status: 'active', repaid_amount: 48000, term_days: 180, borrower: '', lender: '', created_at: '', due_date: '' }
-                ])).map((loan: any) => {
-                  const progress = (loan.repaid_amount / (loan.principal * (1 + loan.interest_rate/100))) * 100; 
+                {(selectedAgent?.credit_profile?.active_loans || []).map((loan: any) => {
+                  const totalDue = loan.principal * (1 + (loan.interest_rate));
+                  const progress = (loan.repaid_amount / totalDue) * 100; 
                   return (
                     <tr key={loan.loan_id}>
-                      <td className="mono">{loan.loan_id}</td>
+                      <td className="mono" title={loan.loan_id}>{loan.loan_id.substring(0, 12)}...</td>
                       <td className="mono" style={{ color: 'var(--gold)' }}>{loan.principal.toLocaleString()} ITK</td>
-                      <td>{loan.interest_rate}%</td>
-                      <td>
-                        {loan.collateral_contracts?.length || 0} Contract(s) <br/>
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>AIS: {loan.collateral_ais}</span>
-                      </td>
-                      <td><StatusBadge status={loan.status} /></td>
+                      <td>{(loan.interest_rate * 100).toFixed(1)}%</td>
+                      <td>{new Date(loan.due_date).toLocaleDateString()}</td>
+                      <td><StatusBadge status={loan.status.toLowerCase()} /></td>
                       <td style={{ minWidth: '150px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', marginBottom: '2px' }}>
-                          <span>{loan.repaid_amount} ITK</span>
+                          <span>{loan.repaid_amount.toLocaleString()} ITK</span>
                           <span className="text-muted">{Math.round(progress)}%</span>
                         </div>
                         <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
@@ -199,13 +166,20 @@ export function CreditPanel() {
                         </div>
                       </td>
                       <td>
-                        <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '0.75rem', color: 'var(--success)' }} onClick={() => addToast('success', 'Repayment processed')}>
-                          Repay
+                        <button 
+                          className="btn btn-ghost" 
+                          style={{ padding: '4px 8px', fontSize: '0.75rem', color: 'var(--success)' }} 
+                          onClick={() => handleRepay(loan.loan_id, 1000.0)}
+                          disabled={loan.status === 'REPAID'}
+                        >
+                          Repay 1k
                         </button>
                       </td>
                     </tr>
-                  );
-                })}
+                  ))}
+                  {(selectedAgent?.credit_profile?.active_loans?.length === 0) && (
+                    <tr><td colSpan={7} className="text-muted" style={{ textAlign: 'center', padding: '2rem' }}>No active loans found.</td></tr>
+                  )}
               </tbody>
             </table>
           </div>
