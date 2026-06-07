@@ -17,6 +17,7 @@ import { MarketsPanel } from './components/tabs/MarketsPanel';
 import { StakingPanel } from './components/tabs/StakingPanel';
 import { StabilityPanel } from './components/tabs/StabilityPanel';
 import { AdvancedPanel } from './components/tabs/AdvancedPanel';
+import { WalletPanel } from './components/tabs/WalletPanel';
 
 function DashboardShell() {
   const { activeTab } = useDashboard();
@@ -40,6 +41,7 @@ function DashboardShell() {
           {activeTab === 'stability' && <StabilityPanel />}
           {activeTab === 'governance' && <GovernancePanel />}
           {activeTab === 'advanced' && <AdvancedPanel />}
+          {activeTab === 'wallet' && <WalletPanel />}
         </main>
       </div>
       <ToastManager />

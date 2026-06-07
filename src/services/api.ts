@@ -146,6 +146,15 @@ class ApiService {
     return this.post('/audit/request', { agent_address: address, audit_type: type });
   }
 
+  // --- Wallet & Tokens ---
+  async getWalletBalance(address: string): Promise<{ balance_itk: number }> {
+    return this.fetch(`/wallet/${address}/balance`);
+  }
+
+  async transferTokens(from: string, to: string, amount: number): Promise<any> {
+    return this.post('/wallet/transfer', { from_address: from, to_address: to, amount_itk: amount });
+  }
+
   // --- Telemetry ---
   async reportTelemetry(data: any): Promise<any> {
     return this.post('/transactions/report', data);

@@ -14,6 +14,7 @@ interface DashboardContextType {
   selectedAgent: Agent | null;
   stats: ProtocolStats | null;
   walletAddress: string | null;
+  walletBalance: number;
   activeTab: TabId;
   isLoading: boolean;
   isBackendOffline: boolean;
@@ -34,13 +35,14 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [selectedAgentAddr, setSelectedAgentAddr] = useState<string | null>(null);
   const [stats, setStats] = useState<ProtocolStats | null>(null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isBackendOffline, setIsBackendOffline] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   
   const [activeTab, setActiveTabState] = useState<TabId>(() => {
     const hash = window.location.hash.replace('#', '') as TabId;
-    const validTabs: TabId[] = ['telemetry', 'identity', 'ledger', 'zk', 'factory', 'compliance', 'credit', 'governance', 'markets', 'advanced', 'staking', 'stability'];
+    const validTabs: TabId[] = ['telemetry', 'identity', 'ledger', 'zk', 'factory', 'compliance', 'credit', 'governance', 'markets', 'advanced', 'staking', 'stability', 'wallet'];
     return validTabs.includes(hash) ? hash : 'telemetry';
   });
 
@@ -96,6 +98,16 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Fetch wallet balance if connected
+      if (walletAddress) {
+        try {
+          const bal = await api.getWalletBalance(walletAddress);
+          setWalletBalance(bal.balance_itk);
+        } catch (e) {
+          console.warn("Wallet balance fetch failed", e);
+        }
+      }
+
       setAgents(allAgents);
       setStats(fetchedStats || null);
       setIsBackendOffline(false);
@@ -117,7 +129,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '') as TabId;
-      const validTabs: TabId[] = ['telemetry', 'identity', 'ledger', 'zk', 'factory', 'compliance', 'credit', 'governance', 'markets', 'advanced', 'staking', 'stability'];
+      const validTabs: TabId[] = ['telemetry', 'identity', 'ledger', 'zk', 'factory', 'compliance', 'credit', 'governance', 'markets', 'advanced', 'staking', 'stability', 'wallet'];
       if (validTabs.includes(hash)) setActiveTabState(hash);
     };
     
@@ -136,6 +148,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       selectedAgent,
       stats,
       walletAddress,
+      walletBalance,
       activeTab,
       isLoading,
       isBackendOffline,

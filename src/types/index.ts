@@ -260,4 +260,5 @@ export type TabId =
   | 'markets'
   | 'staking'
   | 'stability'
+  | 'wallet'
   | 'advanced';

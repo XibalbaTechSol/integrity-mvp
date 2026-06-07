@@ -22,7 +22,14 @@ export function LedgerPanel() {
     setIsLoading(true);
     try {
       const data = await api.getAllContracts();
-      setContracts(data);
+      // Handle both paginated object and direct array
+      if (Array.isArray(data)) {
+        setContracts(data);
+      } else if (data && typeof data === 'object' && Array.isArray((data as any).logs)) {
+        setContracts((data as any).logs);
+      } else {
+        setContracts([]);
+      }
     } catch (err) {
       // Fallback
       let allContracts = agents.flatMap(a => a.owned_contracts || []);
