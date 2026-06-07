@@ -146,7 +146,7 @@ export function WalletPanel() {
                           className="btn btn-ghost" 
                           style={{ color: 'var(--success)', fontSize: '0.75rem', padding: '4px 8px' }}
                           onClick={() => handleRepayFromWallet(loan.loan_id, 1000)}
-                          disabled={!walletAddress || loan.status === 'REPAID'}
+                          disabled={!walletAddress || loan.status === 'repaid'}
                         >
                           Repay 1k
                         </button>

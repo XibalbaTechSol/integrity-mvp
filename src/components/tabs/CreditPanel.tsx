@@ -173,7 +173,7 @@ export function CreditPanel() {
                           className="btn btn-ghost" 
                           style={{ padding: '4px 8px', fontSize: '0.75rem', color: 'var(--success)' }} 
                           onClick={() => handleRepay(loan.loan_id, 1000.0)}
-                          disabled={loan.status === 'REPAID'}
+                          disabled={loan.status === 'repaid'}
                         >
                           Repay 1k
                         </button>

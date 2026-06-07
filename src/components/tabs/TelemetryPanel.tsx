@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../../services/api';
+import { IntegrityRadar } from '../shared/IntegrityRadar';
 
 export function TelemetryPanel() {
   const { stats, selectedAgent, isLoading, fetchData, addToast } = useDashboard();
@@ -123,20 +124,7 @@ export function TelemetryPanel() {
                   <StatusBadge ais={selectedAgent.current_ais} />
                 </div>
 
-                <div className="grid-cols-3 mb-4">
-                  <div style={{ textAlign: 'center', padding: 'var(--space-3)', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedAgent.entropy_score}</div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Entropy</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: 'var(--space-3)', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--success)' }}>{selectedAgent.grounding_score}</div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Grounding</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: 'var(--space-3)', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--gold)' }}>{selectedAgent.sacrifice_score}</div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sacrifice</div>
-                  </div>
-                </div>
+                <IntegrityRadar agent={selectedAgent} />
 
                 {selectedAgent.tee_verified && (
                   <div className="flex items-center gap-3" style={{ background: 'var(--primary-dim)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(34, 211, 238, 0.3)' }}>

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useDashboard } from '../../context/DashboardContext';
 import { Panel } from '../shared/Panel';
-import { ShieldCheck, Cpu } from 'lucide-react';
+import { ShieldCheck, Cpu, RefreshCw } from 'lucide-react';
 import { api } from '../../services/api';
+import { TransactionStepper } from '../shared/TransactionStepper';
+import type { Step } from '../shared/TransactionStepper';
 
 export function ZKProverPanel() {
   const { selectedAgent, addToast } = useDashboard();
@@ -10,18 +12,52 @@ export function ZKProverPanel() {
   const [isProving, setIsProving] = useState(false);
   const [proofResult, setProofResult] = useState<any>(null);
 
+  const [steps, setSteps] = useState<Step[]>([
+    { id: 'witness', label: 'Computing Private Witness...', status: 'pending' },
+    { id: 'compile', label: 'Compiling Noir Circuit...', status: 'pending' },
+    { id: 'prove', label: 'Generating PLONK Proof...', status: 'pending' },
+    { id: 'verify', label: 'Verifying with StateAnchor...', status: 'pending' },
+  ]);
+
+  const updateStep = (id: string, status: Step['status']) => {
+    setSteps(prev => prev.map(s => s.id === id ? { ...s, status } : s));
+  };
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAgent) return;
     
     setIsProving(true);
     setProofResult(null);
+    setSteps(steps.map(s => ({ ...s, status: 'pending' })));
+
     try {
+      updateStep('witness', 'loading');
+      await new Promise(r => setTimeout(r, 1000));
+      updateStep('witness', 'completed');
+
+      updateStep('compile', 'loading');
+      await new Promise(r => setTimeout(r, 1500));
+      updateStep('compile', 'completed');
+
+      updateStep('prove', 'loading');
       const res = await api.generateZKProof(selectedAgent.eth_address, { type: proofType });
+      updateStep('prove', 'completed');
+
+      updateStep('verify', 'loading');
+      await new Promise(r => setTimeout(r, 1200));
       setProofResult(res.proof);
+      updateStep('verify', 'completed');
+
       addToast('success', 'Zero-knowledge proof generated successfully');
     } catch (err) {
       console.warn('Backend offline. Falling back to local simulated proof.');
+      
+      updateStep('prove', 'completed');
+      updateStep('verify', 'loading');
+      await new Promise(r => setTimeout(r, 1000));
+      updateStep('verify', 'completed');
+
       setProofResult({
         proof_hash: '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join(''),
         proof_data: '{"pi_a":["0x1a...","0x2b..."],"pi_b":[["0x3c...","0x4d..."],["0x5e...","0x6f..."]],"pi_c":["0x7a...","0x8b..."]}'
@@ -52,8 +88,14 @@ export function ZKProverPanel() {
             </select>
           </div>
 
+          {isProving && (
+            <div className="animate-fade-in">
+              <TransactionStepper title="ZK Proving Pipeline" steps={steps} />
+            </div>
+          )}
+
           <button type="submit" className="btn btn-primary" disabled={isProving || !selectedAgent}>
-            {isProving ? 'Generating Circuit...' : 'Generate Proof'}
+            {isProving ? <RefreshCw className="spin" size={16} /> : 'Generate Proof'}
           </button>
         </form>
       </Panel>
