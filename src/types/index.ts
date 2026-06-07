@@ -105,9 +105,9 @@ export interface Agent {
   tee_measurement?: string;
   xns_handle?: string;
   did_document?: DIDDocument;
-  owned_contracts: OwnedContract[];
-  credit_profile: CreditProfile;
-  equity: EquityHolding[];
+  owned_contracts?: OwnedContract[];
+  credit_profile?: CreditProfile;
+  equity?: EquityHolding[];
   staked_itk: number;
   registered_at: string;
   last_active: string;

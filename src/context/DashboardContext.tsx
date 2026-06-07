@@ -40,7 +40,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   
   const [activeTab, setActiveTabState] = useState<TabId>(() => {
     const hash = window.location.hash.replace('#', '') as TabId;
-    const validTabs: TabId[] = ['telemetry', 'identity', 'ledger', 'zk', 'factory', 'compliance', 'credit', 'governance', 'markets', 'advanced'];
+    const validTabs: TabId[] = ['telemetry', 'identity', 'ledger', 'zk', 'factory', 'compliance', 'credit', 'governance', 'markets', 'advanced', 'staking', 'stability'];
     return validTabs.includes(hash) ? hash : 'telemetry';
   });
 
@@ -117,7 +117,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '') as TabId;
-      const validTabs: TabId[] = ['telemetry', 'identity', 'ledger', 'zk', 'factory', 'compliance', 'credit', 'governance', 'markets', 'advanced'];
+      const validTabs: TabId[] = ['telemetry', 'identity', 'ledger', 'zk', 'factory', 'compliance', 'credit', 'governance', 'markets', 'advanced', 'staking', 'stability'];
       if (validTabs.includes(hash)) setActiveTabState(hash);
     };
     

@@ -17,7 +17,8 @@ export function CreditPanel() {
   const p = parseFloat(borrowAmount) || 0;
   const ais = selectedAgent?.current_ais || 500;
   const interestRate = Math.max(1.5, 12 - (ais / 100)); // Dynamic rate based on AIS
-  const isOverLimit = p > (selectedAgent?.credit_profile?.max_borrow_limit || 10000);
+  const borrowLimit = selectedAgent?.credit_profile?.max_borrow_limit || 10000;
+  const isOverLimit = p > borrowLimit;
 
   const handleBorrow = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +31,7 @@ export function CreditPanel() {
         term_days: parseInt(termDays)
       });
       addToast('success', 'Loan approved and funded via protocol credit');
-      fetchData();
+      if (fetchData) await fetchData();
     } catch (err: any) {
       addToast('error', `Loan failed: ${err.message}`);
     } finally {
@@ -46,11 +47,13 @@ export function CreditPanel() {
         amount_itk: amount
       });
       addToast('success', 'Repayment processed successfully');
-      fetchData();
+      if (fetchData) await fetchData();
     } catch (err: any) {
       addToast('error', `Repayment failed: ${err.message}`);
     }
   };
+
+  const activeLoans = selectedAgent?.credit_profile?.active_loans || [];
 
   return (
     <div className="flex-col gap-6">
@@ -68,7 +71,7 @@ export function CreditPanel() {
               </div>
               <div className="flex justify-between" style={{ padding: 'var(--space-2) 0', borderTop: '1px solid var(--glass-border)' }}>
                 <span className="text-muted" style={{ fontSize: '0.875rem' }}>Borrow Limit</span>
-                <span className="mono" style={{ color: 'var(--success)' }}>{(selectedAgent?.credit_profile?.max_borrow_limit || 0).toLocaleString()} ITK</span>
+                <span className="mono" style={{ color: 'var(--success)' }}>{borrowLimit.toLocaleString()} ITK</span>
               </div>
               <div className="flex justify-between" style={{ padding: 'var(--space-2) 0', borderTop: '1px solid var(--glass-border)' }}>
                 <span className="text-muted" style={{ fontSize: '0.875rem' }}>Total Borrowed</span>
@@ -146,7 +149,7 @@ export function CreditPanel() {
                 </tr>
               </thead>
               <tbody>
-                {(selectedAgent?.credit_profile?.active_loans || []).map((loan: any) => {
+                {activeLoans.map((loan: any) => {
                   const totalDue = loan.principal * (1 + (loan.interest_rate));
                   const progress = (loan.repaid_amount / totalDue) * 100; 
                   return (
@@ -176,10 +179,11 @@ export function CreditPanel() {
                         </button>
                       </td>
                     </tr>
-                  ))}
-                  {(selectedAgent?.credit_profile?.active_loans?.length === 0) && (
-                    <tr><td colSpan={7} className="text-muted" style={{ textAlign: 'center', padding: '2rem' }}>No active loans found.</td></tr>
-                  )}
+                  );
+                })}
+                {activeLoans.length === 0 && (
+                  <tr><td colSpan={7} className="text-muted" style={{ textAlign: 'center', padding: '2rem' }}>No active loans found.</td></tr>
+                )}
               </tbody>
             </table>
           </div>

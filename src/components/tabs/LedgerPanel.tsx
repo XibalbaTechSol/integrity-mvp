@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Panel } from '../shared/Panel';
 import { useDashboard } from '../../context/DashboardContext';
 import { StatusBadge } from '../shared/StatusBadge';
-import { Layers, Search, ExternalLink, Cpu, Activity, User, ShoppingCart, RefreshCw } from 'lucide-react';
+import { Layers, Search, Cpu, Activity, User, ShoppingCart, RefreshCw } from 'lucide-react';
 import { api } from '../../services/api';
 import type { OwnedContract } from '../../types';
 
