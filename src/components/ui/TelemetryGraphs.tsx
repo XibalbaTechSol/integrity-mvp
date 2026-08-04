@@ -35,14 +35,18 @@ export const TelemetryGraphs = () => {
     const fetchTelemetry = async () => {
       try {
         const perAgent = await Promise.all(
-          agents.map((a) =>
-            oracle
+          agents.map((a) => {
+            // alias can be null (agent has no XNS handle or DID-document name yet) —
+            // fall back to the DID itself rather than let a null flow into the chart
+            // series key/label, which crashed on `agent.split(' ')` below.
+            const label = a.alias || a.name || a.id;
+            return oracle
               .getTelemetry(a.eth_address)
               .then((events) =>
-                events.map((e) => ({ e, agent: a.alias })),
+                events.map((e) => ({ e, agent: label })),
               )
-              .catch(() => [] as { e: any; agent: string }[]),
-          ),
+              .catch(() => [] as { e: any; agent: string }[]);
+          }),
         );
         const sorted = perAgent
           .flat()

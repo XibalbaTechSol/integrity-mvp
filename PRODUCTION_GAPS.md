@@ -115,6 +115,12 @@ repo's no-silent-mocks rule rather than left as unmarked placeholder data.
   this pass — they already null-check before rendering their primary UI, but a
   root-cause review of every `selectedAgent.eth_address` call site against a genuinely
   empty fleet hasn't been done.
-* **No CI** — per the root `CLAUDE.md`, `make test`/`make test-e2e` run by a human or
-  agent is the enforcement mechanism; this pass didn't add or run this repo's e2e suite
-  against a live stack (no `integrity-mvp` Playwright config exists yet).
+* **(2026-08-04) Real Playwright e2e suite added** (`playwright.config.ts`, `e2e/`) —
+  21 tests across 4 spec files, run against a real dev server hitting the real
+  oracle/bcc_middleware/chain stack (`npm run test-e2e`), no route mocking. Caught a
+  real bug on first run: `TelemetryGraphs.tsx` crashed with `Cannot read properties of
+  null (reading 'split')` on `/intelligence` whenever any agent in the fleet has a null
+  `alias` (no XNS handle or DID-document name yet) — fixed by falling back to
+  `name`/`id`. No CI wiring yet (no GitHub Actions workflow calls `test-e2e`) — still
+  a human/agent-run step per the root `CLAUDE.md`'s `make test`/`make test-e2e`
+  convention, same as every other package in the monorepo.
