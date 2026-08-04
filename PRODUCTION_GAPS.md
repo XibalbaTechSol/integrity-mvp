@@ -66,9 +66,24 @@ repo's no-silent-mocks rule rather than left as unmarked placeholder data.
   is gated on `walletAddress === ARBITRATOR_ADDRESS`, matching dashboard's pattern
   exactly, not a `SeededDataBadge`. The BAA registry and Compliance Review Queue now read
   real `oracle.getAgentBaas()`/`getAuditLog()` data — the old fake `loadDefaultData()`
-  seed arrays are gone. **Quarantine tab and the "Enclave Integrity: 100%" stat were
-  removed/badged, not wired** — no on-chain or oracle-backend analog exists anywhere for
-  either (confirmed against `integrity-dashboard`, which doesn't have them either).
+  seed arrays are gone. The "Enclave Integrity: 100%" stat was removed outright (no
+  probability model exists anywhere in the protocol for it, same conclusion
+  independently reached for `integrity-dashboard`'s `TriMetricWidget`).
+* **(2026-08-04) Quarantine tab is now real** — found the actual backend already exists:
+  `bcc_middleware/app/quarantine.py` defines quarantine as `Slasher.lockedStakeOf(agent)
+  > 0`, which is exactly `StakeDto.locked_stake` the oracle already returns per agent.
+  `HealthPage.tsx`'s Quarantine tab now fans out `oracle.getStake()` across the
+  registered fleet (same bounded client-side pattern `DashboardContext` already uses)
+  and flags any agent with locked stake. No "Force Restore" action — there isn't one on
+  bcc_middleware's side either; quarantine clears itself the instant the arbitrator
+  resolves the dispute via `SmartBAA.arbitrate`, which now triggers a live re-scan.
+* **(2026-08-04) Arbitrator now gets a network-wide dispute queue.** The Compliance
+  Review Queue was scoped to whichever agent happened to be selected — useless for an
+  actual arbitrator, who needs every disputed `SmartBAA` across the whole fleet, not
+  one agent at a time. When the connected wallet matches `ARBITRATOR_ADDRESS`, the panel
+  now fans `oracle.getAgentBaas()` out across every registered agent and shows the
+  union of `Disputed`-status BAAs instead — same client-side fan-out pattern as
+  Quarantine above, gated so it only runs for the one wallet that can act on it.
 * **(2026-08-04) EHRGate/consent is now real.** `EHRGate` deployed to Base Sepolia at
   `0x684E31dc51667E37803EBeA7a781172A27D55B16` (verified on Sourcify and via a live
   `minAisThreshold()` read returning `800`). `HealthPage.tsx`'s "EHR Gates" tab now

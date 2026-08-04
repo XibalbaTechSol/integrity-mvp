@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { Panel } from '../components/shared/Panel';
 import { StatusBadge } from '../components/shared/StatusBadge';
-import { SeededDataBadge } from '../components/shared/SeededDataBadge';
 import { useDashboard } from '../context/DashboardContext';
 import { SubTabs } from '../components/ui/SubTabs';
 import { oracle, type BaaDto, type AuditLogEntryDto } from '../services/oracle';
@@ -80,12 +79,17 @@ interface ConsentGate {
   grantedAt: number;
 }
 
+// Real quarantine semantics, mirroring bcc_middleware/app/quarantine.py exactly:
+// an agent is quarantined iff Slasher.lockedStakeOf(agent) > 0 — i.e. StakeDto's
+// locked_stake, which the oracle already exposes per-agent. No separate contract or
+// endpoint needed; quarantine clears itself the moment governance resolves the
+// dispute (bcc_middleware never builds a manual "restore" step, so this UI doesn't
+// fake one either — see Slasher.sol's resolveDispute).
 interface QuarantinedAgent {
-  id: string;
+  agentId: string;
   agentDid: string;
-  violationReason: string;
-  lockoutExpiry: string;
-  status: 'LOCKED' | 'RESTORED';
+  lockedStake: string;
+  openDisputes: number;
 }
 
 
@@ -100,7 +104,7 @@ export default function HealthPage() {
     { id: 'compliance', label: 'Audit & Compliance', icon: <ShieldCheck size={14} /> },
     { id: 'quarantine', label: 'Quarantine', icon: <AlertTriangle size={14} /> },
   ];
-  const { walletAddress, agentsLoading } = useDashboard() as any;
+  const { walletAddress, agentsLoading, agents } = useDashboard() as any;
   const [baas, setBaas] = useState<BaaDto[]>([]);
   const [saAddr, setSaAddr] = useState<string | null>(null);
   const [consents, setConsents] = useState<ConsentGate[]>([]);
@@ -108,7 +112,10 @@ export default function HealthPage() {
   const [busyGate, setBusyGate] = useState<string | null>(null);
   const [logs, setLogs] = useState<InteractionLog[]>([]);
   const [violations, setViolations] = useState<ViolationRecord[]>([]);
+  const [arbitratorQueue, setArbitratorQueue] = useState<ViolationRecord[]>([]);
+  const [arbitratorQueueLoading, setArbitratorQueueLoading] = useState(false);
   const [quarantinedAgents, setQuarantinedAgents] = useState<QuarantinedAgent[]>([]);
+  const [quarantineLoading, setQuarantineLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busyBaa, setBusyBaa] = useState<string | null>(null);
 
@@ -127,8 +134,6 @@ export default function HealthPage() {
   const [newRequester, setNewRequester] = useState('');
   const [newCoveredEntity, setNewCoveredEntity] = useState('');
   const [newRecordHash, setNewRecordHash] = useState('0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
-
-  const [quarantinedAgentsSeeded] = useState<QuarantinedAgent[]>([]);
 
   // ─── Real Smart BAA registry + audit log (mirrors integrity-dashboard's
   // HealthPanel.fetchData exactly — no mock api.getBAAs/getHealthInteractions). ───
@@ -177,8 +182,78 @@ export default function HealthPage() {
 
   useEffect(() => {
     fetchHealthData();
-    setQuarantinedAgents(quarantinedAgentsSeeded); // no real quarantine backend — see PRODUCTION_GAPS.md
-  }, [fetchHealthData, quarantinedAgentsSeeded]);
+  }, [fetchHealthData]);
+
+  // Real quarantine scan: fan out oracle.getStake() across the whole registered fleet
+  // (same O(N) client-side pattern DashboardContext already uses for protocol-wide
+  // stake aggregation) and flag any agent with locked_stake > 0 — the exact
+  // `Slasher.lockedStakeOf(agent) > 0` check bcc_middleware's quarantine.py already
+  // enforces at the request-gating layer. This just surfaces that same real state.
+  const refreshQuarantine = useCallback(async () => {
+    if (agentsLoading) return;
+    setQuarantineLoading(true);
+    try {
+      const results = await Promise.all(
+        (agents as any[]).map(async (a) => {
+          try {
+            const stake = await oracle.getStake(a.eth_address);
+            return { a, stake };
+          } catch {
+            return null;
+          }
+        })
+      );
+      const quarantined = results
+        .filter((r): r is { a: any; stake: any } => !!r && Number(r.stake.locked_stake) > 0)
+        .map(({ a, stake }) => ({
+          agentId: a.id,
+          agentDid: a.eth_address,
+          lockedStake: stake.locked_stake,
+          openDisputes: stake.open_disputes,
+        }));
+      setQuarantinedAgents(quarantined);
+    } finally {
+      setQuarantineLoading(false);
+    }
+  }, [agents, agentsLoading]);
+
+  useEffect(() => { refreshQuarantine(); }, [refreshQuarantine]);
+
+  // The arbitrator wallet is the ONLY wallet that can actually resolve a dispute
+  // (SmartBAA.arbitrate is onlyArbitrator — see handleArbitrate below), but the
+  // per-agent `violations` above only ever shows the currently-selected agent's
+  // disputes. A real arbitrator monitoring the whole network needs every disputed
+  // BAA across every agent, not one at a time — this fans out oracle.getAgentBaas()
+  // across the fleet (same bounded client-side pattern as refreshQuarantine above)
+  // only when the connected wallet IS the arbitrator, so it's not wasted work for
+  // every other visitor.
+  const refreshArbitratorQueue = useCallback(async () => {
+    if (!walletAddress || walletAddress.toLowerCase() !== ARBITRATOR_ADDRESS.toLowerCase() || agentsLoading) {
+      setArbitratorQueue([]);
+      return;
+    }
+    setArbitratorQueueLoading(true);
+    try {
+      const perAgent = await Promise.all(
+        (agents as any[]).map((a) => oracle.getAgentBaas(a.eth_address).catch(() => [] as BaaDto[]))
+      );
+      const disputed = perAgent
+        .flat()
+        .filter((b) => b.status === 'Disputed')
+        .map((b) => ({
+          id: b.address,
+          address: b.address,
+          agent: b.business_associate,
+          coveredEntity: b.covered_entity,
+          detail: `Disputed SmartBAA with covered entity ${b.covered_entity.slice(0, 10)}… — awaiting on-chain arbitration.`,
+        }));
+      setArbitratorQueue(disputed);
+    } finally {
+      setArbitratorQueueLoading(false);
+    }
+  }, [agents, agentsLoading, walletAddress]);
+
+  useEffect(() => { refreshArbitratorQueue(); }, [refreshArbitratorQueue]);
 
   const getSigner = async () => new ethers.BrowserProvider((window as any).ethereum).getSigner();
 
@@ -307,6 +382,7 @@ export default function HealthPage() {
       await (await baa.raiseDispute()).wait();
       addToast('success', 'Dispute raised — awaiting arbitration.');
       fetchHealthData();
+      refreshArbitratorQueue();
     } catch (err: any) {
       addToast('error', `Raising dispute failed: ${err.shortMessage || err.reason || err.message}`);
     } finally {
@@ -427,6 +503,8 @@ export default function HealthPage() {
       await (await baa.arbitrate(slash)).wait();
       addToast('success', slash ? 'Collateral slashed to the covered entity.' : 'Dispute dismissed; BAA restored to Active.');
       fetchHealthData();
+      refreshArbitratorQueue();
+      refreshQuarantine();
     } catch (err: any) {
       addToast('error', `Arbitration failed: ${err.shortMessage || err.reason || err.message}`);
     } finally {
@@ -453,7 +531,7 @@ export default function HealthPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--theme-accent)' }}>Health Protocol</div>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Smart BAA registry and EHR Gates are real (Base Sepolia); Quarantine remains illustrative — see per-tab notes.</span>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Smart BAA registry, EHR Gates, and Quarantine are all real (Base Sepolia).</span>
         </div>
 
         {/* ─── HIPAA Stats Strip ─── */}
@@ -763,49 +841,60 @@ export default function HealthPage() {
 
               {/* Violations Review Queue */}
               <div className="col-span-1">
-                <Panel title="Compliance Review Queue" icon={<AlertTriangle size={18} color="var(--danger)" />}>
-                  <div className="flex-col gap-4">
-                    <p className="text-muted" style={{ fontSize: '0.7rem', margin: 0 }}>
-                      Real disputed <code>SmartBAA</code>s awaiting arbitration. Resolving requires connecting the protocol arbitrator's wallet.
-                    </p>
-                    {violations.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                        <ShieldCheck size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                        No violations flagged for review.
+                {(() => {
+                  const isArbitrator = !!walletAddress && walletAddress.toLowerCase() === ARBITRATOR_ADDRESS.toLowerCase();
+                  const queue = isArbitrator ? arbitratorQueue : violations;
+                  const queueLoading = isArbitrator && arbitratorQueueLoading;
+                  return (
+                    <Panel title={isArbitrator ? 'Arbitration Queue (Network-Wide)' : 'Compliance Review Queue'} icon={<AlertTriangle size={18} color="var(--danger)" />}>
+                      <div className="flex-col gap-4">
+                        <p className="text-muted" style={{ fontSize: '0.7rem', margin: 0 }}>
+                          {isArbitrator
+                            ? 'You are connected as the protocol arbitrator — this scans every registered agent\'s disputed SmartBAAs, not just the selected agent.'
+                            : 'Real disputed SmartBAAs for the selected agent. Resolving requires connecting the protocol arbitrator\'s wallet.'}
+                        </p>
+                        {queueLoading ? (
+                          <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>Scanning fleet for disputes…</div>
+                        ) : queue.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                            <ShieldCheck size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                            No violations flagged for review.
+                          </div>
+                        ) : (
+                          queue.map(v => (
+                            <div
+                              key={v.id}
+                              style={{
+                                background: 'rgba(244, 63, 94, 0.05)',
+                                border: '1px solid rgba(244, 63, 94, 0.2)',
+                                borderRadius: 'var(--radius-md)',
+                                padding: 'var(--space-4)',
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--danger)' }}>
+                                  BAA DISPUTE
+                                </span>
+                                <ShieldAlert size={16} color="var(--danger)" />
+                              </div>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)', marginBottom: '12px', lineHeight: 1.4 }}>
+                                {v.detail}
+                              </p>
+                              <div className="flex gap-2">
+                                <button className="btn btn-danger btn-xs" style={{ flex: 1 }} disabled={busyBaa === v.address} onClick={() => handleArbitrate(v.address, true)}>
+                                  Slash Stake
+                                </button>
+                                <button className="btn btn-ghost btn-xs" style={{ flex: 1, border: '1px solid var(--border)' }} disabled={busyBaa === v.address} onClick={() => handleArbitrate(v.address, false)}>
+                                  Dismiss
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
-                    ) : (
-                      violations.map(v => (
-                        <div
-                          key={v.id}
-                          style={{
-                            background: 'rgba(244, 63, 94, 0.05)',
-                            border: '1px solid rgba(244, 63, 94, 0.2)',
-                            borderRadius: 'var(--radius-md)',
-                            padding: 'var(--space-4)',
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--danger)' }}>
-                              BAA DISPUTE
-                            </span>
-                            <ShieldAlert size={16} color="var(--danger)" />
-                          </div>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)', marginBottom: '12px', lineHeight: 1.4 }}>
-                            {v.detail}
-                          </p>
-                          <div className="flex gap-2">
-                            <button className="btn btn-danger btn-xs" style={{ flex: 1 }} disabled={busyBaa === v.address} onClick={() => handleArbitrate(v.address, true)}>
-                              Slash Stake
-                            </button>
-                            <button className="btn btn-ghost btn-xs" style={{ flex: 1, border: '1px solid var(--border)' }} disabled={busyBaa === v.address} onClick={() => handleArbitrate(v.address, false)}>
-                              Dismiss
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </Panel>
+                    </Panel>
+                  );
+                })()}
               </div>
             </div>
           </motion.div>
@@ -823,53 +912,43 @@ export default function HealthPage() {
             <div className="grid-cols-1" style={{ gap: 'var(--space-6)' }}>
               <Panel title="Agent Circuit Breakers (Quarantine Zone)" icon={<AlertTriangle size={18} color="var(--danger)" />}>
                 <div className="flex-col gap-4">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <SeededDataBadge label="No quarantine backend exists" />
-                  </div>
                   <p className="text-muted" style={{ fontSize: '0.85rem' }}>
-                    Agents that have violated the OPA HIPAA intent policies or lacked active BAA smart contracts are locked out at the pre-execution middleware layer. Their network access is severed until the lockout expires.
+                    Real quarantine state: an agent is quarantined the moment its Slasher clone shows locked stake (an unresolved dispute), the exact same <code>lockedStakeOf(agent) &gt; 0</code> check <code>bcc_middleware</code>'s pre-execution gate enforces on every request. There's no separate "restore" action to build — quarantine clears itself the instant the arbitrator resolves the dispute via <code>SmartBAA.arbitrate</code> (Smart BAAs tab) or the dispute is otherwise released on-chain.
                   </p>
-                  
+
                   <div className="table-container">
                     <table className="table">
                       <thead>
                         <tr>
-                          <th>Agent DID</th>
-                          <th>Violation Reason</th>
-                          <th>Lockout Expiry</th>
+                          <th>Agent</th>
+                          <th>Locked Stake</th>
+                          <th>Open Disputes</th>
                           <th>Status</th>
-                          <th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {quarantinedAgents.map(qa => (
-                          <tr key={qa.id}>
-                            <td className="mono" title={qa.agentDid}>{qa.agentDid}</td>
-                            <td style={{ color: 'var(--danger)', fontWeight: 600 }}>{qa.violationReason}</td>
-                            <td className="mono">{new Date(qa.lockoutExpiry).toLocaleTimeString()}</td>
-                            <td>
-                              <span style={{
-                                fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px',
-                                background: qa.status === 'LOCKED' ? 'rgba(244, 63, 94, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                color: qa.status === 'LOCKED' ? 'var(--danger)' : 'var(--success)',
-                                border: `1px solid ${qa.status === 'LOCKED' ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)'}`,
-                                fontWeight: 700
-                              }}>
-                                {qa.status}
-                              </span>
-                            </td>
-                            <td>
-                              {qa.status === 'LOCKED' && (
-                                <button className="btn btn-outline btn-xs" onClick={() => {
-                                  setQuarantinedAgents(prev => prev.map(q => q.id === qa.id ? { ...q, status: 'RESTORED' } : q));
-                                  addToast('success', 'Manual override: Agent restored from quarantine.');
+                        {quarantineLoading ? (
+                          <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>Scanning fleet stake state…</td></tr>
+                        ) : quarantinedAgents.length === 0 ? (
+                          <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem', color: 'var(--success)' }}>No agents currently quarantined.</td></tr>
+                        ) : (
+                          quarantinedAgents.map(qa => (
+                            <tr key={qa.agentId}>
+                              <td className="mono" title={qa.agentDid}>{qa.agentDid.substring(0, 24)}...</td>
+                              <td className="mono" style={{ color: 'var(--danger)' }}>{(Number(qa.lockedStake) / 1e18).toLocaleString()} ITK</td>
+                              <td>{qa.openDisputes}</td>
+                              <td>
+                                <span style={{
+                                  fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px',
+                                  background: 'rgba(244, 63, 94, 0.1)', color: 'var(--danger)',
+                                  border: '1px solid rgba(244, 63, 94, 0.2)', fontWeight: 700
                                 }}>
-                                  Force Restore
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                                  QUARANTINED
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
