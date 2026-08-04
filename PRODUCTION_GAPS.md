@@ -45,11 +45,16 @@ repo's no-silent-mocks rule rather than left as unmarked placeholder data.
   to `agents`). `ShieldPage.tsx`'s panel now lists real results instead of a simulated
   scan. Deliberately not literal network/process scanning — see
   `bcc_middleware/spec/xibalba-shield-v1.md`'s `[PLANNED]` kernel-sensor design for that
-  separate, out-of-scope vision. **Policy Rules panel stays honestly badged** — a real
-  runtime toggle is possible (OPA's Data API against the pre-designed
-  `data.clinical_allowlist.agents` extension point in `bcc_middleware/policies/bcc.rego`)
-  but wasn't built this pass; general Rego rule edits still require an OPA container
-  redeploy regardless (its `policies/` mount is read-only).
+  separate, out-of-scope vision. **Policy Rules panel is now real too** — new
+  `bcc_middleware` endpoints `GET`/`PUT /v1/admin/clinical-allowlist` proxy OPA's Data
+  API against the pre-designed `data.clinical_allowlist.agents` extension point in
+  `bcc_middleware/policies/bcc.rego`; `ShieldPage.tsx` add/removes agents from the
+  runtime allowlist for real (via a new `src/services/bccMiddleware.ts` client). Still
+  honestly scoped: this is the ONE policy surface that doesn't need a redeploy — every
+  other rule (thresholds, new rule types) still requires editing the read-only-mounted
+  `.rego` files and restarting the `opa` container, which the panel's remaining
+  `SeededDataBadge` says plainly. The write is in-memory on OPA's side only — lost on
+  container restart, since nothing persists it to a mounted data file.
 * **(2026-08-04) Health's Smart BAA flow is now real**, mirroring
   `integrity-dashboard/src/components/tabs/HealthPanel.tsx` (the validated reference
   implementation) exactly: `handleProposeBAA` calls `SmartBAAFactory.createBAA` after

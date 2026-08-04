@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ShieldAlert, Terminal, EyeOff, AlertTriangle, CheckCircle, Search, Users, Loader2 } from 'lucide-react';
+import { ShieldAlert, Terminal, EyeOff, AlertTriangle, CheckCircle, Search, Users, Loader2, Plus, X } from 'lucide-react';
 import { useDashboard } from '../context/DashboardContext';
 import { oracle, AuditLogEntryDto, UnregisteredAgentDto } from '../services/oracle';
+import { bccMiddleware } from '../services/bccMiddleware';
 import { SeededDataBadge } from '../components/shared/SeededDataBadge';
 
 const UNREGISTERED_DISPLAY_LIMIT = 25;
@@ -12,6 +13,11 @@ export default function ShieldPage() {
   const [loading, setLoading] = useState(true);
   const [unregistered, setUnregistered] = useState<UnregisteredAgentDto[]>([]);
   const [scanning, setScanning] = useState(true);
+  const [allowlist, setAllowlist] = useState<string[]>([]);
+  const [allowlistLoading, setAllowlistLoading] = useState(true);
+  const [newAllowlistAgent, setNewAllowlistAgent] = useState('');
+  const [allowlistBusy, setAllowlistBusy] = useState(false);
+  const [allowlistError, setAllowlistError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -34,6 +40,47 @@ export default function ShieldPage() {
   };
 
   useEffect(() => { runScan(); }, []);
+
+  const refreshAllowlist = () => {
+    setAllowlistLoading(true);
+    bccMiddleware.getClinicalAllowlist()
+      .then(r => setAllowlist(r.agents))
+      .catch(() => setAllowlist([]))
+      .finally(() => setAllowlistLoading(false));
+  };
+
+  useEffect(() => { refreshAllowlist(); }, []);
+
+  const addToAllowlist = async () => {
+    const did = newAllowlistAgent.trim();
+    if (!did || allowlist.includes(did)) return;
+    setAllowlistBusy(true);
+    setAllowlistError(null);
+    try {
+      const next = [...allowlist, did];
+      await bccMiddleware.setClinicalAllowlist(next);
+      setAllowlist(next);
+      setNewAllowlistAgent('');
+    } catch (err: any) {
+      setAllowlistError(err.message || 'Failed to update allowlist.');
+    } finally {
+      setAllowlistBusy(false);
+    }
+  };
+
+  const removeFromAllowlist = async (did: string) => {
+    setAllowlistBusy(true);
+    setAllowlistError(null);
+    try {
+      const next = allowlist.filter(a => a !== did);
+      await bccMiddleware.setClinicalAllowlist(next);
+      setAllowlist(next);
+    } catch (err: any) {
+      setAllowlistError(err.message || 'Failed to update allowlist.');
+    } finally {
+      setAllowlistBusy(false);
+    }
+  };
 
   const denyCount = logs.filter(l => l.decision === 'DENY').length;
   const injectionCount = logs.filter(l => /inject/i.test(l.event_type)).length;
@@ -140,18 +187,42 @@ export default function ShieldPage() {
 
           <div className="card">
             <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <AlertTriangle size={18} /> Policy Rules <SeededDataBadge label="No policy-config API yet" />
+              <AlertTriangle size={18} /> Policy Rules
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-                <input type="checkbox" defaultChecked disabled /> Auto-block unverified DIDs
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-                <input type="checkbox" defaultChecked disabled /> Require ZK-Proof on API ingress
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-                <input type="checkbox" defaultChecked disabled /> Block external LLM telemetry
-              </label>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              Real runtime toggle for the clinical-agent allowlist (<code>bcc.rego</code>'s <code>data.clinical_allowlist.agents</code> extension point), via bcc_middleware's OPA Data API proxy. This is the one policy surface that doesn't need a redeploy — everything else (thresholds, new rule types) requires editing the read-only-mounted <code>.rego</code> files and restarting the <code>opa</code> container.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+              {allowlistLoading ? (
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading…</div>
+              ) : allowlist.length === 0 ? (
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No agents on the runtime clinical allowlist.</div>
+              ) : (
+                allowlist.map(did => (
+                  <div key={did} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.6rem', background: 'var(--bg-color)', borderRadius: '4px', fontSize: '0.8rem' }}>
+                    <span style={{ fontFamily: 'monospace' }}>{did}</span>
+                    <button className="button" disabled={allowlistBusy} onClick={() => removeFromAllowlist(did)} style={{ padding: '0.2rem', background: 'none', border: 'none' }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            {allowlistError && <div style={{ color: '#f44336', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{allowlistError}</div>}
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="text"
+                placeholder="did:integrity:…"
+                value={newAllowlistAgent}
+                onChange={e => setNewAllowlistAgent(e.target.value)}
+                style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--surface-color)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
+              />
+              <button className="button" disabled={allowlistBusy || !newAllowlistAgent.trim()} onClick={addToAllowlist} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <Plus size={14} /> Add
+              </button>
+            </div>
+            <div style={{ marginTop: '1rem' }}>
+              <SeededDataBadge label="Other rule types require an OPA redeploy" />
             </div>
           </div>
         </div>
