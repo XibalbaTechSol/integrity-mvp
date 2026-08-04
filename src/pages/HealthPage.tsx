@@ -28,9 +28,22 @@ import { SeededDataBadge } from '../components/shared/SeededDataBadge';
 import { useDashboard } from '../context/DashboardContext';
 import { SubTabs } from '../components/ui/SubTabs';
 import { oracle, type BaaDto, type AuditLogEntryDto } from '../services/oracle';
-import { SMART_BAA_FACTORY_ADDRESS, COVERED_ENTITY_REGISTRY_ADDRESS, ITK_TOKEN_ADDRESS, ARBITRATOR_ADDRESS } from '../constants';
-import { SMART_BAA_FACTORY_ABI, SMART_BAA_ABI, COVERED_ENTITY_REGISTRY_ABI, ENTITY_TYPE_COVERED_ENTITY } from '../chain/shield';
+import { SMART_BAA_FACTORY_ADDRESS, COVERED_ENTITY_REGISTRY_ADDRESS, ITK_TOKEN_ADDRESS, ARBITRATOR_ADDRESS, EHR_GATE_ADDRESS, RPC_URL } from '../constants';
+import { SMART_BAA_FACTORY_ABI, SMART_BAA_ABI, COVERED_ENTITY_REGISTRY_ABI, ENTITY_TYPE_COVERED_ENTITY, EHR_GATE_ABI } from '../chain/shield';
 import { ERC20_ABI, executeAsAgent } from '../chain/markets';
+
+// EHRGate has no on-chain enumeration of gates (accessGates is keyed by a specific
+// (patient, recordHash, agent) triplet, no "list all" getter) -- this browser-local
+// watchlist of triplets to re-check is a bookmark list, not a source of truth. Each
+// entry's actual status is always re-read live from the contract, never cached here.
+const CONSENT_WATCHLIST_KEY = 'integrity_mvp_consent_watchlist';
+interface WatchedGate { patient: string; recordHash: string; agent: string; }
+function loadWatchlist(): WatchedGate[] {
+  try { return JSON.parse(localStorage.getItem(CONSENT_WATCHLIST_KEY) || '[]'); } catch { return []; }
+}
+function saveWatchlist(list: WatchedGate[]) {
+  localStorage.setItem(CONSENT_WATCHLIST_KEY, JSON.stringify(list));
+}
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 // BAA/Interaction/Violation are now derived directly from real oracle DTOs
@@ -56,13 +69,15 @@ interface ViolationRecord {
   detail: string;
 }
 
-interface ConsentContract {
-  id: string;
-  patientDid: string;
-  requestingEntity: string;
+// Real EHRGate.accessGates(patient, recordHash, agent) read — no "status" concept
+// beyond isUnlocked; coveredEntity/grantedAt come straight from the contract.
+interface ConsentGate {
+  patient: string;
   recordHash: string;
-  status: 'Authorized' | 'Revoked' | 'Pending';
-  lastUpdated: string;
+  agent: string;
+  coveredEntity: string;
+  isUnlocked: boolean;
+  grantedAt: number;
 }
 
 interface QuarantinedAgent {
@@ -88,7 +103,9 @@ export default function HealthPage() {
   const { walletAddress, agentsLoading } = useDashboard() as any;
   const [baas, setBaas] = useState<BaaDto[]>([]);
   const [saAddr, setSaAddr] = useState<string | null>(null);
-  const [consents, setConsents] = useState<ConsentContract[]>([]);
+  const [consents, setConsents] = useState<ConsentGate[]>([]);
+  const [consentsLoading, setConsentsLoading] = useState(true);
+  const [busyGate, setBusyGate] = useState<string | null>(null);
   const [logs, setLogs] = useState<InteractionLog[]>([]);
   const [violations, setViolations] = useState<ViolationRecord[]>([]);
   const [quarantinedAgents, setQuarantinedAgents] = useState<QuarantinedAgent[]>([]);
@@ -105,10 +122,10 @@ export default function HealthPage() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [newStake, setNewStake] = useState('5000');
 
-  // New Consent Inputs (still local UI state for this pass — see Workstream C2
-  // in PRODUCTION_GAPS.md; EHRGate write wiring is a separate follow-up).
-  const [newPatientDid, setNewPatientDid] = useState('did:xibalba:patient:0x981a...f281');
-  const [newRequester, setNewRequester] = useState('0xHealth_Provider_Clinic_88a');
+  // New Consent Inputs — real EHRGate.grantAccess args. Patient defaults to the
+  // connected wallet since grantAccess is patient-wallet-signed (msg.sender).
+  const [newRequester, setNewRequester] = useState('');
+  const [newCoveredEntity, setNewCoveredEntity] = useState('');
   const [newRecordHash, setNewRecordHash] = useState('0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
 
   const [quarantinedAgentsSeeded] = useState<QuarantinedAgent[]>([]);
@@ -164,6 +181,33 @@ export default function HealthPage() {
   }, [fetchHealthData, quarantinedAgentsSeeded]);
 
   const getSigner = async () => new ethers.BrowserProvider((window as any).ethereum).getSigner();
+
+  // Real EHRGate.accessGates reads for every (patient, recordHash, agent) triplet this
+  // browser has previously interacted with — see CONSENT_WATCHLIST_KEY's comment for
+  // why a local watchlist is the correct pattern here (no on-chain enumeration exists).
+  const refreshConsents = useCallback(async () => {
+    if (!EHR_GATE_ADDRESS) { setConsents([]); setConsentsLoading(false); return; }
+    const watched = loadWatchlist();
+    if (watched.length === 0) { setConsents([]); setConsentsLoading(false); return; }
+    setConsentsLoading(true);
+    try {
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      const gate = new ethers.Contract(EHR_GATE_ADDRESS, EHR_GATE_ABI, provider);
+      const results = await Promise.all(watched.map(async (w) => {
+        try {
+          const [coveredEntity, isUnlocked, grantedAt] = await gate.accessGates(w.patient, w.recordHash, w.agent);
+          return { ...w, coveredEntity, isUnlocked, grantedAt: Number(grantedAt) } as ConsentGate;
+        } catch {
+          return { ...w, coveredEntity: '0x0', isUnlocked: false, grantedAt: 0 } as ConsentGate;
+        }
+      }));
+      setConsents(results);
+    } finally {
+      setConsentsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { refreshConsents(); }, [refreshConsents]);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -286,57 +330,84 @@ export default function HealthPage() {
     }
   };
 
-  const handleCreateConsent = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newC: ConsentContract = {
-      id: 'con_gate_' + Math.floor(Math.random() * 1000),
-      patientDid: newPatientDid,
-      requestingEntity: newRequester,
-      recordHash: newRecordHash,
-      status: 'Pending',
-      lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    };
-    setConsents(prev => [newC, ...prev]);
-    addToast('success', 'Consent Contract gating record proposed.');
-  };
-
-  const handleToggleConsent = async (id: string, action: 'Authorized' | 'Revoked') => {
+  // Runs a real WebAuthn passkey ceremony as a local biometric pre-authorization gate
+  // before prompting the actual wallet signature. The passkey itself has no
+  // cryptographic link to the on-chain transaction — it's a UX gate, not the
+  // authorization; the wallet signature below is what actually authorizes.
+  const runPasskeyGate = async (label: string): Promise<boolean> => {
     try {
-      addToast('info', 'Awaiting Biometric Passkey signature...');
-      
       const challenge = new Uint8Array(32);
       window.crypto.getRandomValues(challenge);
-      
-      const publicKeyCredentialCreationOptions = {
-          challenge: challenge,
-          rp: {
-              name: "Xibalba Shield (EHR Gate)"
-          },
-          user: {
-              id: new Uint8Array(16),
-              name: "patient-" + id,
-              displayName: "Patient Sovereign Identity"
-          },
-          pubKeyCredParams: [{alg: -7, type: "public-key"}],
-          authenticatorSelection: {
-              authenticatorAttachment: "platform", // Forces Touch ID / Windows Hello
-              userVerification: "required"
-          },
-          timeout: 60000,
-          attestation: "none"
-      } as any;
-
       const credential = await navigator.credentials.create({
-          publicKey: publicKeyCredentialCreationOptions
+        publicKey: {
+          challenge,
+          rp: { name: 'Integrity Health (EHR Gate)' },
+          user: { id: new Uint8Array(16), name: label, displayName: 'Patient Sovereign Identity' },
+          pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+          authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+          timeout: 60000,
+          attestation: 'none',
+        } as any,
       });
+      return !!credential;
+    } catch {
+      addToast('error', 'Passkey authentication cancelled or unsupported — proceeding to wallet signature only.');
+      return true; // the passkey is a UX nicety, not a hard requirement — never block the real tx on it
+    }
+  };
 
-      if (credential) {
-        setConsents(prev => prev.map(c => c.id === id ? { ...c, status: action, lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16) } : c));
-        addToast('success', `EHR Gate successfully updated to: ${action} via Passkey Signature.`);
+  // Real EHRGate.grantAccess — patient-wallet-signed. The connected wallet IS the
+  // patient (msg.sender), so there's no separate "patient address" field to fill in.
+  const handleCreateConsent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!EHR_GATE_ADDRESS) { addToast('error', 'EHRGate is not deployed on this network yet.'); return; }
+    if (!walletAddress) { addToast('error', 'Connect your wallet (as the patient) first.'); return; }
+    if (!ethers.isAddress(newRequester) || !ethers.isAddress(newCoveredEntity)) {
+      addToast('error', 'Requesting agent and covered entity must be valid addresses.'); return;
+    }
+    setBusyGate('create');
+    try {
+      await runPasskeyGate(`patient-${walletAddress}`);
+      const signer = await getSigner();
+      const gate = new ethers.Contract(EHR_GATE_ADDRESS, EHR_GATE_ABI, signer);
+      addToast('info', 'Granting EHR Gate access…');
+      await (await gate.grantAccess(newRecordHash, newRequester, newCoveredEntity)).wait();
+      const watched = loadWatchlist();
+      const entry = { patient: walletAddress, recordHash: newRecordHash, agent: newRequester };
+      if (!watched.some(w => w.patient === entry.patient && w.recordHash === entry.recordHash && w.agent === entry.agent)) {
+        saveWatchlist([entry, ...watched]);
       }
-    } catch (error) {
-      console.error(error);
-      addToast('error', 'Passkey authentication cancelled or unsupported on this device.');
+      addToast('success', 'EHR Gate access granted.');
+      setNewRequester('');
+      setNewCoveredEntity('');
+      refreshConsents();
+    } catch (err: any) {
+      addToast('error', `Grant failed: ${err.shortMessage || err.reason || err.message}`);
+    } finally {
+      setBusyGate(null);
+    }
+  };
+
+  // Real EHRGate.revokeAccess — patient-wallet-signed.
+  const handleRevokeConsent = async (gate: ConsentGate) => {
+    if (!walletAddress || walletAddress.toLowerCase() !== gate.patient.toLowerCase()) {
+      addToast('error', 'Only the patient who granted this access can revoke it.');
+      return;
+    }
+    const key = `${gate.patient}-${gate.recordHash}-${gate.agent}`;
+    setBusyGate(key);
+    try {
+      await runPasskeyGate(`patient-${gate.patient}`);
+      const signer = await getSigner();
+      const contract = new ethers.Contract(EHR_GATE_ADDRESS!, EHR_GATE_ABI, signer);
+      addToast('info', 'Revoking EHR Gate access…');
+      await (await contract.revokeAccess(gate.recordHash, gate.agent)).wait();
+      addToast('success', 'EHR Gate access revoked.');
+      refreshConsents();
+    } catch (err: any) {
+      addToast('error', `Revoke failed: ${err.shortMessage || err.reason || err.message}`);
+    } finally {
+      setBusyGate(null);
     }
   };
 
@@ -382,7 +453,7 @@ export default function HealthPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--theme-accent)' }}>Health Protocol</div>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Smart BAA registry is real (Base Sepolia); EHR Gates &amp; Quarantine remain illustrative — see per-tab notes.</span>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Smart BAA registry and EHR Gates are real (Base Sepolia); Quarantine remains illustrative — see per-tab notes.</span>
         </div>
 
         {/* ─── HIPAA Stats Strip ─── */}
@@ -538,81 +609,99 @@ export default function HealthPage() {
               {/* Record Gate Consent Contracts */}
               <Panel title="Patient Consent Contracts (EHR Gates)" icon={<Lock size={18} color="var(--theme-accent)" />}>
                 <div className="flex-col gap-4">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <SeededDataBadge label="EHRGate not yet deployed to Base Sepolia" />
-                  </div>
                   <p className="text-muted" style={{ fontSize: '0.85rem' }}>
-                    The real on-chain consent mechanism is <code>EHRGate.grantAccess</code>/<code>revokeAccess</code> — the ABI is wired (<code>chain/shield.ts</code>) but the contract has only ever been deployed locally, never to Base Sepolia. This panel stays local-state until that deploy runs; see PRODUCTION_GAPS.md.
+                    Real on-chain consent via <code>EHRGate</code> (Base Sepolia). EHRGate has no on-chain enumeration, so this list is a local bookmark of gates this browser has interacted with — each row's status is always re-read live from the contract, never cached.
                   </p>
 
                   <div className="table-container">
                     <table className="table">
                       <thead>
                         <tr>
-                          <th>Patient DID</th>
-                          <th>Requester</th>
+                          <th>Patient</th>
+                          <th>Requesting Agent</th>
                           <th>Record Hash</th>
                           <th>Status</th>
                           <th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {consents.map(c => (
-                          <tr key={c.id}>
-                            <td className="mono" title={c.patientDid} style={{ whiteSpace: 'nowrap' }}>{c.patientDid.substring(0, 15)}...</td>
-                            <td className="mono" title={c.requestingEntity} style={{ whiteSpace: 'nowrap' }}>{c.requestingEntity.substring(0, 12)}...</td>
-                            <td className="mono" style={{ whiteSpace: 'nowrap' }}>{c.recordHash.substring(0, 10)}...</td>
-                            <td style={{ whiteSpace: 'nowrap' }}><StatusBadge status={c.status.toLowerCase()} /></td>
-                            <td style={{ whiteSpace: 'nowrap' }}>
-                              <div style={{ display: 'flex', gap: '4px' }}>
-                                {c.status !== 'Authorized' && (
-                                  <button className="btn btn-success btn-sm" onClick={() => handleToggleConsent(c.id, 'Authorized')}>AUTHORIZE</button>
+                        {consentsLoading ? (
+                          <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>Loading…</td></tr>
+                        ) : consents.length === 0 ? (
+                          <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>No known gates for this browser yet — grant one below.</td></tr>
+                        ) : (
+                          consents.map(c => {
+                            const key = `${c.patient}-${c.recordHash}-${c.agent}`;
+                            const canRevoke = c.isUnlocked && !!walletAddress && walletAddress.toLowerCase() === c.patient.toLowerCase();
+                            return (
+                            <tr key={key}>
+                              <td className="mono" title={c.patient} style={{ whiteSpace: 'nowrap' }}>{c.patient.substring(0, 12)}...</td>
+                              <td className="mono" title={c.agent} style={{ whiteSpace: 'nowrap' }}>{c.agent.substring(0, 12)}...</td>
+                              <td className="mono" title={c.recordHash} style={{ whiteSpace: 'nowrap' }}>{c.recordHash.substring(0, 10)}...</td>
+                              <td style={{ whiteSpace: 'nowrap' }}><StatusBadge status={c.isUnlocked ? 'active' : 'pending'} /></td>
+                              <td style={{ whiteSpace: 'nowrap' }}>
+                                {canRevoke && (
+                                  <button className="btn btn-danger btn-sm" disabled={busyGate === key} onClick={() => handleRevokeConsent(c)}>
+                                    {busyGate === key ? '…' : 'REVOKE'}
+                                  </button>
                                 )}
-                                {c.status !== 'Revoked' && (
-                                  <button className="btn btn-danger btn-sm" onClick={() => handleToggleConsent(c.id, 'Revoked')}>REVOKE</button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                            </tr>
+                            );
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>
                 </div>
               </Panel>
 
-              {/* Propose Consent Request */}
-              <Panel title="Request / Register Consent Gate" icon={<Key size={18} />}>
+              {/* Grant Consent */}
+              <Panel title="Grant EHR Gate Access" icon={<Key size={18} />}>
                 <form className="flex-col gap-4" onSubmit={handleCreateConsent}>
                   <div className="form-group">
-                    <label className="form-label" htmlFor="patient-did">Patient DID</label>
-                    <input 
-                      id="patient-did"
-                      className="input" 
-                      value={newPatientDid} 
-                      onChange={e => setNewPatientDid(e.target.value)} 
-                    />
+                    <label className="form-label">Patient (your connected wallet)</label>
+                    {walletAddress ? (
+                      <div className="input mono" style={{ opacity: 0.8 }}>{walletAddress}</div>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>Connect a wallet first.</div>
+                    )}
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>grantAccess is patient-wallet-signed — you grant access as yourself, not on behalf of another patient.</div>
                   </div>
                   <div className="form-group">
-                    <label className="form-label" htmlFor="requester-entity">Requesting Entity Address</label>
-                    <input 
+                    <label className="form-label" htmlFor="requester-entity">Requesting Agent Address</label>
+                    <input
                       id="requester-entity"
-                      className="input" 
-                      value={newRequester} 
-                      onChange={e => setNewRequester(e.target.value)} 
+                      className="input"
+                      placeholder="0x… (the agent's SovereignAgent address)"
+                      value={newRequester}
+                      onChange={e => setNewRequester(e.target.value)}
+                      required
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label" htmlFor="ehr-record-hash">Medical Record Hash (SHA-256)</label>
-                    <input 
-                      id="ehr-record-hash"
-                      className="input" 
-                      value={newRecordHash} 
-                      onChange={e => setNewRecordHash(e.target.value)} 
+                    <label className="form-label" htmlFor="covered-entity">Covered Entity Address</label>
+                    <input
+                      id="covered-entity"
+                      className="input"
+                      placeholder="0x… (must have an active SmartBAA with the agent)"
+                      value={newCoveredEntity}
+                      onChange={e => setNewCoveredEntity(e.target.value)}
+                      required
                     />
                   </div>
-                  <button type="submit" className="btn btn-primary">
-                    Deploy Consent Gate Contract
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="ehr-record-hash">Medical Record Hash (bytes32)</label>
+                    <input
+                      id="ehr-record-hash"
+                      className="input"
+                      value={newRecordHash}
+                      onChange={e => setNewRecordHash(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary" disabled={busyGate === 'create' || !walletAddress}>
+                    {busyGate === 'create' ? 'Granting…' : 'Grant Access'}
                   </button>
                 </form>
               </Panel>

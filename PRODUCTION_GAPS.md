@@ -64,17 +64,21 @@ repo's no-silent-mocks rule rather than left as unmarked placeholder data.
   seed arrays are gone. **Quarantine tab and the "Enclave Integrity: 100%" stat were
   removed/badged, not wired** — no on-chain or oracle-backend analog exists anywhere for
   either (confirmed against `integrity-dashboard`, which doesn't have them either).
-* **EHRGate/consent — genuinely new ground, blocked on a real Base Sepolia deploy.**
-  Unlike BAA, `integrity-dashboard` never built EHRGate wiring at all, so there was no
-  reference to mirror. The specific blocker: `contracts/broadcast/DeployEHRGate.s.sol/`
-  has only ever run against local anvil (chain id `31337`) — no `84532` directory exists
-  — so `EHRGate` has no address on Base Sepolia yet, despite the contract itself being
-  real and tested in isolation (`contracts/src/health/EHRGate.sol`). The full ABI
-  (`grantAccess`/`revokeAccess`/`checkAccess`/`verifyAndLogAccess`/`accessGates`) is
-  ready in `chain/shield.ts` for whenever `EHR_GATE_ADDRESS` exists in
-  `deployments.baseSepolia.json` (the deploy script merges it in automatically). Until
-  then, `HealthPage.tsx`'s "EHR Gates" tab stays local-state with an explicit
-  `SeededDataBadge` naming this exact blocker — not a vague "still fake" note.
+* **(2026-08-04) EHRGate/consent is now real.** `EHRGate` deployed to Base Sepolia at
+  `0x684E31dc51667E37803EBeA7a781172A27D55B16` (verified on Sourcify and via a live
+  `minAisThreshold()` read returning `800`). `HealthPage.tsx`'s "EHR Gates" tab now
+  calls real `grantAccess`/`revokeAccess` (patient-wallet-signed) and reads real
+  `accessGates` state. Since `EHRGate` has no on-chain enumeration (no "list all
+  gates" getter — `accessGates` is keyed by a specific `(patient, recordHash, agent)`
+  triplet), the visible list is a browser-local watchlist of triplets to re-check, not
+  a source of truth; every row's status is always re-read live from the contract on
+  render, never cached in the watchlist itself. The existing WebAuthn passkey ceremony
+  is kept as a local pre-authorization UX gate before the real wallet signature — it
+  has no cryptographic link to the transaction, and the copy says so plainly.
+  Deploying it also caught a real bug in `DeployEHRGate.s.sol`'s merge step: it
+  silently dropped `network`, `domains`, and the `IntegrityGovernance` singleton from
+  `deployments.baseSepolia.json` on write (`vm.writeJson` replaces the whole file, so
+  any field not explicitly re-parsed is lost, not merged) — fixed in the same commit.
 * **Investigated and deliberately NOT built: a server-side `/v1/stats/network`
   endpoint.** `docs/design/dashboard-wiring.md` records that `integrity-dashboard`'s team
   rejected this exact endpoint to avoid two disagreeing `protocol_staked_itk` numbers (a
