@@ -7,6 +7,7 @@ import { RegisterAgentModal } from '../ui/RegisterAgentModal';
 import { XNSSearchService } from '../ui/XNSSearchService';
 import { XNSRegisterForm } from '../ui/XNSRegisterForm';
 import { ClaimAgentModal } from '../ui/ClaimAgentModal';
+import { VerificationPanel } from './VerificationPanel';
 
 export function IdentityPanel() {
   const { selectedAgent } = useDashboard();
@@ -24,6 +25,8 @@ export function IdentityPanel() {
           </div>
         )}
       </Panel>
+
+      <VerificationPanel />
 
       <Panel title="XNS Search Service" icon={<Search size={18} />}>
         <XNSSearchService />
