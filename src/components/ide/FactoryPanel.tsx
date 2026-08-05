@@ -383,7 +383,7 @@ export function FactoryPanel() {
               </div>
             </div>
 
-            {/* File List Mock */}
+            {/* File list (real: derived from TEMPLATES[language]) */}
             <div style={{ marginTop: '8px' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Folder size={12} style={{ color: 'var(--theme-accent)' }} /> src/contracts

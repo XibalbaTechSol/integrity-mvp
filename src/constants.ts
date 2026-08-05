@@ -41,12 +41,3 @@ export const NO_CODE_FACTORY_ADDRESS = AGENT_PRIMITIVES_FACTORY_ADDRESS;
 export const BASE_SEPOLIA_CHAIN_ID = deployments.chainId;
 export const RPC_URL = deployments.rpcUrl;
 export const EXPLORER_URL = deployments.explorerUrl;
-
-export const IS_PRODUCTION = false; // Set to false to route to the local backend for session telemetry
-
-const envApiBase = (import.meta as any).env.VITE_API_BASE;
-export const API_BASE = (envApiBase && envApiBase.startsWith('http'))
-  ? envApiBase
-  : (IS_PRODUCTION
-      ? "https://integrity-protocol-backend.onrender.com"
-      : "http://127.0.0.1:9000");
