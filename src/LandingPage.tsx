@@ -55,6 +55,7 @@ export default function LandingPage() {
           <a href="#ais" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: 500 }}>AIS Metrics</a>
           <a href="#verticals" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: 500 }}>Market Verticals</a>
           <a href="#faq" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: 500 }}>FAQ</a>
+          <Link to="/wiki" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: 500 }}>Wiki</Link>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <a href="https://github.com/xibalbatechsol" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: 500 }}>GitHub</a>
@@ -440,7 +441,30 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
-      {/* 10. Global Footer & Final CTA */}
+      {/* 10. Specification */}
+      <section id="specification" style={{ padding: '5rem 2rem', background: 'linear-gradient(135deg, rgba(0, 150, 255, 0.08), rgba(0, 255, 200, 0.035))', borderBottom: '1px solid var(--border-color)' }}>
+        <motion.div initial={fadeInUp.initial} whileInView={fadeInUp.whileInView} viewport={fadeInUp.viewport} transition={fadeInUp.transition} className="card" style={{ maxWidth: '1000px', margin: '0 auto', padding: 'clamp(2rem, 5vw, 4rem)', border: '1px solid var(--glass-border)', textAlign: 'center' }}>
+          <span style={{ display: 'inline-block', marginBottom: '1rem', color: 'var(--accent-color)', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Protocol specification</span>
+          <h2 style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', marginBottom: '1rem' }}>Read the architecture behind verifiable agent integrity.</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', lineHeight: 1.7, maxWidth: '720px', margin: '0 auto 2rem' }}>
+            The living v0.4 specification is maintained in the Integrity Wiki. The original comprehensive v0.3 design is also preserved as a browser-viewable PDF for historical reference.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '1rem' }}>
+            <Link to="/wiki" className="button primary" style={{ padding: '0.9rem 1.4rem', textDecoration: 'none' }}>
+              Read current v0.4 in the Wiki
+            </Link>
+            <a href="/integrity-protocol-specification-v0.3.pdf" target="_blank" rel="noopener noreferrer" className="button secondary" style={{ padding: '0.9rem 1.4rem', textDecoration: 'none' }}>
+              View archived v0.3 PDF
+            </a>
+            <a href="/integrity-protocol-specification-v0.3.pdf" download="Integrity_Protocol_Specification_v0.3.pdf" className="button secondary" style={{ padding: '0.9rem 1.4rem', textDecoration: 'none' }}>
+              Download PDF
+            </a>
+          </div>
+          <p style={{ margin: '1.25rem 0 0', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>v0.4 is normative · PDF archive is v0.3</p>
+        </motion.div>
+      </section>
+
+      {/* 11. Global Footer & Final CTA */}
       <footer style={{ padding: '6rem 3rem 2rem 3rem', textAlign: 'center' }}>
         <motion.div initial={fadeInUp.initial} whileInView={fadeInUp.whileInView} viewport={fadeInUp.viewport} transition={fadeInUp.transition} style={{ marginBottom: '6rem' }}>
           <h2 style={{ fontSize: '2.5rem', marginBottom: '1.5rem' }}>The future of the economy is autonomous.</h2>
@@ -459,7 +483,7 @@ export default function LandingPage() {
           </div>
           <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
             <a href="https://github.com/xibalbatechsol" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>GitHub Repo</a>
-            <Link to="/docs" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Technical Wiki</Link>
+            <Link to="/wiki" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Integrity Wiki</Link>
             <Link to="/privacy" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Privacy Policy</Link>
             <Link to="/terms" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Terms of Service</Link>
           </div>

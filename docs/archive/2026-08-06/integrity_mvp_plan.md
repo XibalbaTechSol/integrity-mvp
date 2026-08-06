@@ -1,6 +1,16 @@
 # Integrity MVP — Product & Architecture Blueprint
 
-This document defines the extensive product scope, visual design principles, technical architecture, and implementation roadmap for `integrity-mvp`. It is designed as a standalone public demonstration repository that consumes the smart contracts and telemetry pipelines from `integrity-latest` to provide a business-ready, high-fidelity proof-of-concept for developers and investors.
+This document defines the extensive product scope, visual design principles, technical architecture, and implementation roadmap for `integrity-mvp`. It is maintained as a separate public frontend repository, but it is not a standalone system: it consumes the contracts and backend services from `INTEGRITY-LATEST` and presents endpoint-security data and controls from `xibalba-shield`.
+
+The dependency graph is `integrity-mvp -> xibalba-shield -> INTEGRITY-LATEST`, plus direct
+`integrity-mvp -> INTEGRITY-LATEST` calls for Oracle, user API, BCC middleware, and chain data.
+Shield is built on the protocol rather than alongside a second trust backend: its
+`integrity-sdk` exporter signs security decisions and submits them to INTEGRITY-LATEST. Neither
+backend depends on the MVP frontend, and INTEGRITY-LATEST does not depend on Shield.
+
+## Audit status — 2026-08-06
+
+The current status ledger is [`docs/audits/2026-08-06-status.md`](docs/audits/2026-08-06-status.md). Mark implementation tasks `DONE` only when the repository has reproducible evidence; features that depend on live INTEGRITY-LATEST services, chain deployments, or Shield evidence remain integration-dependent until directly verified.
 
 ---
 
@@ -31,7 +41,8 @@ A core tenet of the MVP is managing a *fleet* of agents. The UI relies on a glob
 
 ## 4. Dedicated Page Architecture & Concrete Implementations
 
-The MVP application is structured around the following core, dedicated routing paths, pulling from the real `integrity-latest` backbone.
+The MVP application is structured around the following core, dedicated routing paths, pulling
+from the real `INTEGRITY-LATEST` backbone and, for endpoint-security workflows, Xibalba Shield.
 
 ### A. Dashboard (`/dashboard`)
 *   **Purpose:** The central command center and aggregate view.

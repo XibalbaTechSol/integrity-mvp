@@ -6,7 +6,7 @@ import { useDashboard } from '../context/DashboardContext';
 export default function MainAppLayout() {
   const { layoutMode } = useDashboard();
   const location = useLocation();
-  const isFullWidth = location.pathname === '/developer';
+  const isFullWidth = location.pathname === '/developer' || location.pathname === '/memory';
 
   return (
     <div style={{ display: 'flex', flexDirection: layoutMode === 'header' ? 'column' : 'row', minHeight: '100vh', background: 'var(--bg-color)', color: 'var(--text-primary)' }}>

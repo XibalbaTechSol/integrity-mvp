@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { LayoutDashboard, Key, DollarSign, Activity, ShieldCheck, Code, BrainCircuit, ChevronLeft, ChevronRight, User, Settings, LogIn, LogOut } from 'lucide-react';
+import { LayoutDashboard, Key, DollarSign, Activity, ShieldCheck, Code, BrainCircuit, BookOpen, ChevronLeft, ChevronRight, User, Settings, LogIn, LogOut, Database } from 'lucide-react';
 import { useDashboard } from '../context/DashboardContext';
 
 export function Sidebar() {
@@ -25,9 +25,11 @@ export function Sidebar() {
     { to: '/financials', label: 'Financials', icon: <DollarSign size={20} /> },
     { to: '/health', label: 'Health', icon: <Activity size={20} /> },
     { to: '/shield', label: 'Shield', icon: <ShieldCheck size={20} /> },
+    { to: '/memory', label: 'Memory', icon: <Database size={20} /> },
     { to: '/intelligence', label: 'Intelligence', icon: <BrainCircuit size={20} /> },
     { to: '/prediction-markets', label: 'Prediction Markets', icon: <DollarSign size={20} /> },
     { to: '/developer', label: 'Developer', icon: <Code size={20} /> },
+    { to: '/wiki', label: 'Wiki', icon: <BookOpen size={20} /> },
   ];
 
   return (

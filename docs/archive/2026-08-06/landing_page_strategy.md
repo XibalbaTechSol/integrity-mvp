@@ -64,6 +64,11 @@ To prevent the design from becoming unbalanced or confusing, the page will stric
 *   **Narrative:** How the core protocol adapts to specific, highly lucrative enterprise markets.
 
 ### Vertical A: Xibalba Shield (`/shield`)
+
+This route is the frontend for the separate `xibalba-shield` endpoint-security product. Shield
+is built on `INTEGRITY-LATEST` and exports its signed decisions into the protocol; the MVP
+visualizes that evidence alongside the protocol's Oracle, BCC, identity, and reputation data.
+
 *   **Market:** AI Security and Threat Detection (TDIR).
 *   **Content:** Details on OPA policy interceptions, prompt injection blocking, and shadow AI discovery. Real-time agent security.
 

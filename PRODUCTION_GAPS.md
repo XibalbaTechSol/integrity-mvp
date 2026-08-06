@@ -1,5 +1,7 @@
 # integrity-mvp: Production Gap Analysis
 
+> **Current audit pointer — 2026-08-06:** [`docs/audits/2026-08-06-status.md`](docs/audits/2026-08-06-status.md) records the clean-branch build, test, dependency, lint, and integration-verification status. Historical gap entries below remain evidence records and are not silently rewritten.
+
 Following the pass that wired this frontend's core surfaces to real `integrity-oracle`
 and on-chain data (agent fleet, AIS, stake, staking writes, ERC-20 transfers, audit log,
 credit allocation, telemetry traces), the following gaps remain — documented per the
