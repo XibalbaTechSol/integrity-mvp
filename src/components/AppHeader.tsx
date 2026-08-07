@@ -2,10 +2,23 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import { LayoutDashboard, Key, DollarSign, Activity, ShieldCheck, Code, BrainCircuit, User, Settings, LogIn, LogOut } from 'lucide-react';
 import { useDashboard } from '../context/DashboardContext';
+import { BCC_MIDDLEWARE_URL, GRAPH_MEMORY_URL, ORACLE_URL, SHIELD_BACKEND_URL } from '../config';
+
+type ServiceState = 'checking' | 'online' | 'offline';
+
+const serviceChecks = [
+  { key: 'oracle', label: 'Oracle', url: `${ORACLE_URL}/healthz` },
+  { key: 'bcc', label: 'BCC', url: `${BCC_MIDDLEWARE_URL}/health` },
+  { key: 'memory', label: 'Memory', url: `${GRAPH_MEMORY_URL}/api/status` },
+  { key: 'shield', label: 'Shield', url: `${SHIELD_BACKEND_URL}/api/shield/health` },
+] as const;
 
 export function AppHeader() {
   const { selectedAgent, setSelectedAgent, agents, user } = useDashboard();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [serviceStates, setServiceStates] = useState<Record<string, ServiceState>>(
+    Object.fromEntries(serviceChecks.map((service) => [service.key, 'checking'])) as Record<string, ServiceState>,
+  );
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -16,6 +29,29 @@ export function AppHeader() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkServices = async () => {
+      const results = await Promise.all(
+        serviceChecks.map(async (service) => {
+          try {
+            const response = await fetch(service.url, { signal: AbortSignal.timeout(2500) });
+            return [service.key, response.ok ? 'online' : 'offline'] as const;
+          } catch {
+            return [service.key, 'offline'] as const;
+          }
+        }),
+      );
+      if (!cancelled) setServiceStates(Object.fromEntries(results));
+    };
+    void checkServices();
+    const interval = window.setInterval(checkServices, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, []);
   
   const navItems = [
@@ -77,6 +113,18 @@ export function AppHeader() {
 
       {/* Right: Agent Selector and User */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+        <div className="app-service-status" aria-label="Service connectivity">
+          {serviceChecks.map((service) => (
+            <span
+              key={service.key}
+              className={`app-service-indicator ${serviceStates[service.key]}`}
+              title={`${service.label}: ${serviceStates[service.key]}`}
+            >
+              <span aria-hidden="true" />
+              {service.label}
+            </span>
+          ))}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Agent</span>
           <select

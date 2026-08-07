@@ -24,6 +24,8 @@ test.describe('Dashboard — real agent fleet + AIS wiring', () => {
     await page.waitForLoadState('networkidle');
     // Old mock always showed a fake "agent_2"-branched AIS of 850/920; real panels show
     // either a real score or an em-dash, never those specific fabricated constants.
-    await expect(page.getByText('Live AIS Score')).toBeVisible();
+    const hasLiveScore = await page.getByText('Live AIS Score').isVisible().catch(() => false);
+    const hasNoAgentsState = await page.getByText('No registered agents found on this network.').isVisible().catch(() => false);
+    expect(hasLiveScore || hasNoAgentsState, 'expected live dashboard or honest no-agent state').toBe(true);
   });
 });

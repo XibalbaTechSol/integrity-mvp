@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import ForceGraph3D, { type ForceGraphMethods, type NodeObject, type LinkObject } from 'react-force-graph-3d';
 import SpriteText from 'three-spritetext';
 import * as THREE from 'three';
-import type { GraphPayload } from '../services/graphMemory';
+import type { GraphEdge, GraphPayload } from '../services/graphMemory';
 
 // Type-color pairs, distinct per node type / relation vs. similarity edge -- picked for
 // contrast against the dashboard's dark panel backgrounds, not the marketing-site palette.
@@ -56,6 +56,7 @@ export type NodeSizeBy = 'connections' | 'length' | 'uniform';
 interface Props {
     data: GraphPayload;
     onNodeClick: (nodeId: string) => void;
+    onLinkClick?: (edge: GraphEdge) => void;
     selectedNodeId: string | null;
     showGrid: boolean;
     backgroundColor: string;
@@ -63,7 +64,7 @@ interface Props {
 }
 
 export const GraphMemoryView = forwardRef<GraphMemoryViewHandle, Props>(function GraphMemoryView(
-    { data, onNodeClick, selectedNodeId, showGrid, backgroundColor, sizeBy },
+    { data, onNodeClick, onLinkClick, selectedNodeId, showGrid, backgroundColor, sizeBy },
     ref,
 ) {
     const [containerRef, { width, height }] = useContainerSize<HTMLDivElement>();
@@ -301,6 +302,7 @@ export const GraphMemoryView = forwardRef<GraphMemoryViewHandle, Props>(function
                     linkDirectionalParticleSpeed={0.004}
                     linkDirectionalParticleColor={() => EDGE_COLORS.relation}
                     onNodeClick={(node: NodeObject) => onNodeClick((node as unknown as { id: string }).id)}
+                    onLinkClick={(link: LinkObject) => onLinkClick?.(link as unknown as GraphEdge)}
                     // Snaps every node onto the nearest grid intersection each simulation tick,
                     // once enabled (see snapEnabledRef above -- disabled for the first few
                     // seconds so the natural force layout can spread out first). 3d-force-graph

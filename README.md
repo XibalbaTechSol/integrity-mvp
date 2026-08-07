@@ -1,5 +1,8 @@
 # Integrity MVP
 
+For the full local Oracle, BCC middleware, and graph-memory workflow, see
+[`docs/local-stack.md`](docs/local-stack.md) and run `./scripts/dev-stack.sh`.
+
 Integrity MVP is the React/Vite presentation and operator-workflow layer for the Integrity Protocol product stack. It is not a standalone trust backend. It renders protocol state from INTEGRITY-LATEST, surfaces Xibalba Shield endpoint-security evidence, and publishes the canonical Integrity wiki as a generated read-only browser experience.
 
 ## Source-of-truth contract
@@ -10,11 +13,42 @@ If this README conflicts with code, fix the README or the code in the same chang
 
 ## 2026-08-06 audit status
 
-See [`docs/audits/2026-08-06-status.md`](docs/audits/2026-08-06-status.md) and the consolidated cross-repository plan at `/home/xibalba/Documents/INTEGRITY — Cross-Repository Audit and Implementation Plan.md`. The clean audit verified the TypeScript production build and 68 dashboard unit tests. `npm audit` reported 4 vulnerabilities (1 moderate, 3 high), and the declared `npm run lint` command failed because ESLint is absent. This repository is a presentation proof of concept, not a standalone production trust backend.
+See [`docs/audits/2026-08-06-status.md`](docs/audits/2026-08-06-status.md), the current [`docs/audits/2026-08-07-gap-closure.md`](docs/audits/2026-08-07-gap-closure.md), and the consolidated cross-repository plan at `/home/xibalba/Documents/INTEGRITY — Cross-Repository Audit and Implementation Plan.md`. The current worktree build, lint gate, and 26-test Playwright suite pass locally. `npm audit` still reports 4 vulnerabilities (1 moderate, 3 high). This repository is a presentation proof of concept, not a standalone production trust backend.
+
+## Ecosystem Role: 👁️ The Human Control Center
+
+This repository is the **conscious observer** in a four-project ecosystem designed as a living organism:
+
+| Repository | Analogy | Role |
+|---|---|---|
+| `xibalba-graph-memory` | 🧠 The Brain | Local cognitive store — memories, context, reasoning provenance, session Merkle roots |
+| `xibalba-shield` | 🛡️ The Immune System | Endpoint enforcement, kernel sensing, policy gating, semantic guardrails |
+| `INTEGRITY-LATEST` | 🦴 The Unifying Backend | Protocol backbone — on-chain identity, BCC, Oracle scoring, smart contracts |
+| **`integrity-mvp`** | **👁️ The Human Control Center** | Operator dashboard — visualizes health, surfaces evidence, enables human intervention |
+
+**How the Control Center connects:**
+- **Inbound (from Backbone):** Reads Oracle APIs for live AIS scores, telemetry, Shield event logs, and audit trails. Reads on-chain state for identity, governance, staking, BAA/compliance, and market data.
+- **Inbound (from Brain):** Reads graph-memory local API for memory graph, provenance, session timelines, and integrity verification.
+- **Outbound (closes the loop):** Human operators audit agent behavior, update Shield policies, resolve disputes, and direct agent actions — completing the trust cycle.
+
+```mermaid
+flowchart LR
+    Backbone["🦴 INTEGRITY-LATEST<br/>(Oracle + Chain)"] ==>|"AIS, identity,<br/>governance, evidence"| Eyes["👁️ integrity-mvp<br/>(This repo)"]
+    Brain["🧠 xibalba-graph-memory"] -.->|"Memory graph<br/>& provenance"| Eyes
+    Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone
+    Brain -->|"Session Merkle roots"| Backbone
+    Eyes ==>|"Operator audits,<br/>policy updates,<br/>interventions"| Agent["🤖 Agent"]
+    Agent <-->|"Context & memories"| Brain
+    Agent -->|"System calls"| Immune
+```
+
+See [`INTEGRITY-LATEST/docs/architecture/ecosystem-dependencies.md`](https://github.com/XibalbaTechSol/integrity-latest/blob/main/docs/architecture/ecosystem-dependencies.md) for the canonical ownership boundaries.
 
 ## System relationship
 
-`integrity-mvp` sits at the top of a three-project stack:
+`integrity-mvp` sits at the top of a four-project operator stack:
+
+`integrity-mvp -> xibalba-graph-memory -> INTEGRITY-LATEST`
 
 `integrity-mvp -> xibalba-shield -> INTEGRITY-LATEST`
 
@@ -23,6 +57,7 @@ It also consumes INTEGRITY-LATEST APIs and contracts directly.
 | Project | Role | Boundary |
 |---|---|---|
 | `INTEGRITY-LATEST` | Protocol trust backend: SDK, BCC middleware, Oracle/AIS, user API, contracts, canonical wiki | MVP must not own protocol scoring, anchoring, Merkle conventions, or chain schemas |
+| `xibalba-graph-memory` | Local cognitive store: memories, provenance, session roots, graph traversal | MVP may surface memory workflows and evidence; recalled memory remains untrusted content, not protocol truth |
 | `xibalba-shield` | Endpoint sensor/enforcer and signed security-evidence producer | MVP may surface Shield workflows and evidence; Shield remains its own repo/product |
 | `integrity-mvp` | Web presentation, operator workflows, generated wiki browser | No independent trust backend; no direct wiki authoring database |
 
