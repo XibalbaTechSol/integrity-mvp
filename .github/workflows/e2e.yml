@@ -21,11 +21,27 @@ on:
   workflow_dispatch:
 
 jobs:
+  prerequisite:
+    runs-on: ubuntu-latest
+    outputs:
+      available: ${{ steps.secret-check.outputs.available }}
+    steps:
+      - id: secret-check
+        name: Check private sibling repository prerequisite
+        env:
+          INTEGRITY_LATEST_PAT: ${{ secrets.INTEGRITY_LATEST_PAT }}
+        run: |
+          if [[ -n "$INTEGRITY_LATEST_PAT" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "INTEGRITY_LATEST_PAT is available; the end-to-end job will run."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "INTEGRITY_LATEST_PAT is unavailable; the end-to-end job will be skipped."
+          fi
+
   e2e:
-    # The private sibling checkout cannot run without the explicitly documented
-    # repository secret. Skip rather than report a misleading test failure when
-    # the secret is unavailable (for example, on forks or unconfigured repos).
-    if: ${{ secrets.INTEGRITY_LATEST_PAT != '' }}
+    needs: prerequisite
+    if: ${{ needs.prerequisite.outputs.available == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
